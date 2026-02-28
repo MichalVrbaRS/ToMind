@@ -33,6 +33,20 @@
     text-align: center;
     font-weight: 600;
     font-size: 1.05rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.1;
+}
+
+.tm-topbar-title {
+    line-height: 1.2;
+}
+
+.tm-topbar-sub {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--tm-muted);
 }
 
 .tm-topbar-right {

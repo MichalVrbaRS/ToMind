@@ -266,6 +266,7 @@ h1:focus {
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-bottom: 1rem;
+    align-items: center;
 }
 
 .tm-project-tab {
@@ -281,6 +282,19 @@ h1:focus {
     background: var(--tm-primary);
     border-color: var(--tm-primary-border);
     color: #fff;
+}
+
+.tm-project-add-button {
+    margin-left: auto;
+}
+
+.tm-project-add {
+    margin: 0 0 1rem;
+}
+
+.tm-project-input {
+    min-width: 220px;
+    max-width: 320px;
 }
 
 .tm-project-chips {

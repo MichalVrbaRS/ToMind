@@ -26,19 +26,6 @@ else if (_notFound)
 }
 else if (_list is not null)
 {
-    @if (!string.IsNullOrWhiteSpace(_list.Description))
-    {
-        <div class="tm-card tm-list-header">
-            <div class="tm-list-info">
-                <div class="tm-list-meta">@_list.Description</div>
-            </div>
-            @if (!string.IsNullOrWhiteSpace(_list.ImagePath))
-            {
-                <img class="tm-list-image" src="@_list.ImagePath" alt="List banner" />
-            }
-        </div>
-    }
-
     @if (_requiresPassword && !_isAuthorized)
     {
         <div class="tm-card tm-auth-card">
@@ -68,15 +55,30 @@ else if (_list is not null)
     }
     else
     {
-        @if (_projects.Count > 0)
+        <div class="tm-project-tabs">
+            @foreach (var project in _projects)
+            {
+                <button class="tm-project-tab @(project == _activeProject ? "is-active" : null)" type="button" @onclick="() => SetActiveProject(project)">
+                    @project
+                </button>
+            }
+            <button class="tm-icon-button tm-project-add-button" type="button" title="Add project" @onclick="BeginAddProject">
+                +
+            </button>
+        </div>
+        @if (_isAddingProject)
         {
-            <div class="tm-project-tabs">
-                @foreach (var project in _projects)
+            <div class="tm-project-add">
+                @if (!string.IsNullOrWhiteSpace(_projectErrorMessage))
                 {
-                    <button class="tm-project-tab @(project == _activeProject ? "is-active" : null)" type="button" @onclick="() => SetActiveProject(project)">
-                        @project
-                    </button>
+                    <div class="alert alert-danger">@_projectErrorMessage</div>
                 }
+                <div class="d-flex flex-wrap gap-2">
+                    <input class="form-control tm-project-input" placeholder="Project name"
+                           @bind="_newProjectName" @bind:event="oninput" @onkeydown="HandleProjectKeyDown" />
+                    <button class="btn btn-primary btn-sm" type="button" @onclick="AddProjectAsync">Add</button>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="CancelAddProject">Cancel</button>
+                </div>
             </div>
         }
 
@@ -254,6 +256,9 @@ else if (_list is not null)
     private BoardColumn? _activeColumnInput;
     private List<string> _projects = new();
     private string? _activeProject;
+    private bool _isAddingProject;
+    private string _newProjectName = string.Empty;
+    private string? _projectErrorMessage;
     private int? _editingCardId;
     private string _editCardTitle = string.Empty;
     private string? _editCardDescription;
@@ -285,7 +290,7 @@ else if (_list is not null)
         }
 
         var shareUrl = Navigation.ToAbsoluteUri($"/{ListId}").ToString();
-        TopBar.Set(_list.Name, true, true, shareUrl);
+        TopBar.Set(_list.Name, true, true, shareUrl, _list.Description);
         if (_list.Type == ListType.Todo)
         {
             _todoItems = _list.TodoItems
@@ -861,7 +866,75 @@ else if (_list is not null)
             _boardErrorMessage = null;
             _activeColumnInput = null;
             CancelCardEdit();
+            CancelAddProject();
         }
+    }
+
+    private void BeginAddProject()
+    {
+        _projectErrorMessage = null;
+        _isAddingProject = true;
+        _newProjectName = string.Empty;
+    }
+
+    private void CancelAddProject()
+    {
+        _projectErrorMessage = null;
+        _isAddingProject = false;
+        _newProjectName = string.Empty;
+    }
+
+    private async Task HandleProjectKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await AddProjectAsync();
+        }
+        else if (args.Key == "Escape")
+        {
+            CancelAddProject();
+        }
+    }
+
+    private async Task AddProjectAsync()
+    {
+        if (_list is null)
+        {
+            return;
+        }
+
+        var project = _newProjectName.Trim();
+        if (string.IsNullOrWhiteSpace(project))
+        {
+            _projectErrorMessage = "Enter a project name.";
+            return;
+        }
+
+        if (_projects.Any(existing => string.Equals(existing, project, StringComparison.OrdinalIgnoreCase)))
+        {
+            _projectErrorMessage = "Project already exists.";
+            return;
+        }
+
+        _projectErrorMessage = null;
+        _projects.Add(project);
+        _activeProject = project;
+        _isAddingProject = false;
+        _newProjectName = string.Empty;
+        _activeColumnInput = null;
+        CancelCardEdit();
+        await SaveProjectsAsync();
+    }
+
+    private async Task SaveProjectsAsync()
+    {
+        if (_list is null)
+        {
+            return;
+        }
+
+        _list.ProjectName = _projects.Count == 0 ? null : JsonSerializer.Serialize(_projects);
+        await Db.SaveChangesAsync();
     }
 
     private bool MatchesActiveProject(string? projectName)

@@ -16,7 +16,13 @@
                 </button>
             }
         </div>
-        <div class="tm-topbar-center">@TopBar.Title</div>
+        <div class="tm-topbar-center">
+            <span class="tm-topbar-title">@TopBar.Title</span>
+            @if (!string.IsNullOrWhiteSpace(TopBar.Description))
+            {
+                <span class="tm-topbar-sub">@TopBar.Description</span>
+            }
+        </div>
         <div class="tm-topbar-right">
             @if (TopBar.ShowShareButton && !string.IsNullOrWhiteSpace(TopBar.ShareUrl))
             {
