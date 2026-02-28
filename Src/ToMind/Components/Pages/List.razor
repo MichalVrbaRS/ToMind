@@ -1,6 +1,8 @@
 @page "/{ListId:guid}"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using System.ComponentModel.DataAnnotations
+@using System.Data.Common
+@using System.Text.Json
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.EntityFrameworkCore
 @using ToMind.Data
@@ -66,6 +68,18 @@ else if (_list is not null)
     }
     else
     {
+        @if (_projects.Count > 0)
+        {
+            <div class="tm-project-tabs">
+                @foreach (var project in _projects)
+                {
+                    <button class="tm-project-tab @(project == _activeProject ? "is-active" : null)" type="button" @onclick="() => SetActiveProject(project)">
+                        @project
+                    </button>
+                }
+            </div>
+        }
+
         @if (_list.Type == ListType.Todo)
         {
             var orderedTodos = GetOrderedTodos();
@@ -238,6 +252,8 @@ else if (_list is not null)
     private string _newCardTitle = string.Empty;
     private string? _newCardDescription;
     private BoardColumn? _activeColumnInput;
+    private List<string> _projects = new();
+    private string? _activeProject;
     private int? _editingCardId;
     private string _editCardTitle = string.Empty;
     private string? _editCardDescription;
@@ -247,6 +263,7 @@ else if (_list is not null)
     protected override async Task OnInitializedAsync()
     {
         await Db.Database.EnsureCreatedAsync();
+        await EnsureProjectSchemaAsync();
         _list = await Db.Lists
             .Include(l => l.TodoItems)
             .Include(l => l.BoardCards)
@@ -283,6 +300,8 @@ else if (_list is not null)
                 .ThenBy(c => c.Id)
                 .ToList();
         }
+
+        await InitializeProjectsAsync();
 
         _pageTitle = _list.Name;
         _requiresPassword = !string.IsNullOrWhiteSpace(_list.PasswordHash);
@@ -367,6 +386,7 @@ else if (_list is not null)
     private List<TodoItem> GetOrderedTodos()
     {
         return _todoItems
+            .Where(i => MatchesActiveProject(i.ProjectName))
             .OrderBy(i => i.SortOrder)
             .ThenBy(i => i.Id)
             .ToList();
@@ -375,7 +395,7 @@ else if (_list is not null)
     private List<BoardCard> GetOrderedCards(BoardColumn column)
     {
         return _boardCards
-            .Where(c => c.Column == column)
+            .Where(c => c.Column == column && MatchesActiveProject(c.ProjectName))
             .OrderBy(c => c.SortOrder)
             .ThenBy(c => c.Id)
             .ToList();
@@ -404,11 +424,15 @@ else if (_list is not null)
         }
 
         _todoErrorMessage = null;
-        var nextOrder = _todoItems.Count == 0 ? 0 : _todoItems.Max(i => i.SortOrder) + 1;
+        var nextOrder = GetOrderedTodos()
+            .Select(i => i.SortOrder)
+            .DefaultIfEmpty(-1)
+            .Max() + 1;
         var item = new TodoItem
         {
             ListId = _list.Id,
             Text = text,
+            ProjectName = _activeProject,
             IsDone = false,
             SortOrder = nextOrder
         };
@@ -531,7 +555,6 @@ else if (_list is not null)
         }
 
         await Db.SaveChangesAsync();
-        _todoItems = list;
     }
 
     private static string GetColumnTitle(BoardColumn column)
@@ -577,7 +600,7 @@ else if (_list is not null)
 
         _boardErrorMessage = null;
         var nextOrder = _boardCards
-            .Where(c => c.Column == column)
+            .Where(c => c.Column == column && MatchesActiveProject(c.ProjectName))
             .Select(c => c.SortOrder)
             .DefaultIfEmpty(-1)
             .Max() + 1;
@@ -587,6 +610,7 @@ else if (_list is not null)
             ListId = _list.Id,
             Title = title,
             Description = string.IsNullOrWhiteSpace(_newCardDescription) ? null : _newCardDescription.Trim(),
+            ProjectName = _activeProject,
             Column = column,
             SortOrder = nextOrder
         };
@@ -751,6 +775,130 @@ else if (_list is not null)
         _boardCards.Remove(card);
         await Db.SaveChangesAsync();
         await NormalizeCardOrderAsync(card.Column);
+    }
+
+    private async Task EnsureProjectSchemaAsync()
+    {
+        var connection = Db.Database.GetDbConnection();
+        await connection.OpenAsync();
+        try
+        {
+            await EnsureColumnAsync(connection, "TodoItems", "ProjectName");
+            await EnsureColumnAsync(connection, "BoardCards", "ProjectName");
+        }
+        finally
+        {
+            await connection.CloseAsync();
+        }
+    }
+
+    private static async Task EnsureColumnAsync(DbConnection connection, string tableName, string columnName)
+    {
+        await using var checkCommand = connection.CreateCommand();
+        checkCommand.CommandText = $"PRAGMA table_info({tableName});";
+        await using var reader = await checkCommand.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var name = reader.GetString(1);
+            if (string.Equals(name, columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+
+        await using var alterCommand = connection.CreateCommand();
+        alterCommand.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} TEXT";
+        await alterCommand.ExecuteNonQueryAsync();
+    }
+
+    private async Task InitializeProjectsAsync()
+    {
+        if (_list is null)
+        {
+            return;
+        }
+
+        _projects = ParseProjects(_list.ProjectName);
+        if (_projects.Count == 0)
+        {
+            _activeProject = null;
+            return;
+        }
+
+        _activeProject = _projects[0];
+        var defaultProject = _projects[0];
+        var updated = false;
+
+        if (_list.Type == ListType.Todo)
+        {
+            foreach (var item in _todoItems.Where(i => string.IsNullOrWhiteSpace(i.ProjectName)))
+            {
+                item.ProjectName = defaultProject;
+                updated = true;
+            }
+        }
+        else
+        {
+            foreach (var card in _boardCards.Where(c => string.IsNullOrWhiteSpace(c.ProjectName)))
+            {
+                card.ProjectName = defaultProject;
+                updated = true;
+            }
+        }
+
+        if (updated)
+        {
+            await Db.SaveChangesAsync();
+        }
+    }
+
+    private void SetActiveProject(string project)
+    {
+        if (!string.Equals(_activeProject, project, StringComparison.Ordinal))
+        {
+            _activeProject = project;
+            _todoErrorMessage = null;
+            _boardErrorMessage = null;
+            _activeColumnInput = null;
+            CancelCardEdit();
+        }
+    }
+
+    private bool MatchesActiveProject(string? projectName)
+    {
+        if (string.IsNullOrWhiteSpace(_activeProject))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(projectName))
+        {
+            var defaultProject = _projects.FirstOrDefault();
+            return string.Equals(_activeProject, defaultProject, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return string.Equals(projectName, _activeProject, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static List<string> ParseProjects(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return new List<string>();
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.StartsWith("[", StringComparison.Ordinal) && trimmed.EndsWith("]", StringComparison.Ordinal))
+        {
+            var parsed = JsonSerializer.Deserialize<List<string>>(trimmed) ?? new List<string>();
+            return parsed
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(p => p.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        return new List<string> { trimmed };
     }
 
     private async Task NormalizeCardOrderAsync(BoardColumn column)

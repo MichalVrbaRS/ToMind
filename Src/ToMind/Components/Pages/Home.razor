@@ -1,9 +1,11 @@
 @page "/"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using System.ComponentModel.DataAnnotations
+@using System.Text.Json
 @using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
 @using ToMind.Data
 @using ToMind.Services
 @inject ToMindDbContext Db
@@ -85,8 +87,21 @@
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label" for="project">Project</label>
-                    <InputText id="project" class="form-control" @bind-Value="_model.ProjectName" placeholder="Optional project name" />
+                    <label class="form-label" for="project">Projects</label>
+                    <input id="project" class="form-control" placeholder="Type a project name and press Enter"
+                           @bind="_projectInput" @bind:event="oninput" @onkeydown="HandleProjectKeyDown" />
+                    @if (_model.Projects.Count > 0)
+                    {
+                        <div class="tm-project-chips">
+                            @foreach (var project in _model.Projects)
+                            {
+                                <span class="tm-project-chip">
+                                    @project
+                                    <button class="tm-chip-remove" type="button" title="Remove project" @onclick="() => RemoveProject(project)">×</button>
+                                </span>
+                            }
+                        </div>
+                    }
                 </div>
 
                 <div class="mb-3">
@@ -128,6 +143,8 @@
     private Guid? _lastOpenedId;
     private string? _lastOpenedName;
     private bool _skipAutoNav;
+    private string _projectInput = string.Empty;
+    private bool _suppressSubmit;
 
     protected override void OnInitialized()
     {
@@ -226,6 +243,12 @@
 
     private async Task CreateListAsync()
     {
+        if (_suppressSubmit)
+        {
+            _suppressSubmit = false;
+            return;
+        }
+
         if (_isSubmitting)
         {
             return;
@@ -254,6 +277,8 @@
         _isSubmitting = true;
         try
         {
+            AddProjectFromInput();
+            var projects = _model.Projects;
             var now = DateTime.UtcNow;
             var list = new MindList
             {
@@ -261,7 +286,7 @@
                 Name = _model.Name.Trim(),
                 Description = string.IsNullOrWhiteSpace(_model.Description) ? null : _model.Description.Trim(),
                 Type = _model.Type,
-                ProjectName = string.IsNullOrWhiteSpace(_model.ProjectName) ? null : _model.ProjectName.Trim(),
+                ProjectName = projects.Count == 0 ? null : JsonSerializer.Serialize(projects),
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now
             };
@@ -312,6 +337,38 @@
         Directory.CreateDirectory(appDataRoot);
     }
 
+    private void AddProjectFromInput()
+    {
+        var project = _projectInput.Trim();
+        if (string.IsNullOrWhiteSpace(project))
+        {
+            return;
+        }
+
+        if (_model.Projects.Any(existing => string.Equals(existing, project, StringComparison.OrdinalIgnoreCase)))
+        {
+            _projectInput = string.Empty;
+            return;
+        }
+
+        _model.Projects.Add(project);
+        _projectInput = string.Empty;
+    }
+
+    private void RemoveProject(string project)
+    {
+        _model.Projects.Remove(project);
+    }
+
+    private void HandleProjectKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            _suppressSubmit = true;
+            AddProjectFromInput();
+        }
+    }
+
     private sealed class CreateListModel
     {
         [Required]
@@ -321,7 +378,7 @@
 
         public ListType Type { get; set; } = ListType.Todo;
 
-        public string? ProjectName { get; set; }
+        public List<string> Projects { get; } = new();
 
         public string? Password { get; set; }
 

@@ -261,6 +261,59 @@ h1:focus {
     gap: 0.75rem;
 }
 
+.tm-project-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.tm-project-tab {
+    border: 1px solid var(--tm-border);
+    background: var(--tm-surface);
+    color: var(--tm-text);
+    border-radius: 999px;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.9rem;
+}
+
+.tm-project-tab.is-active {
+    background: var(--tm-primary);
+    border-color: var(--tm-primary-border);
+    color: #fff;
+}
+
+.tm-project-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.tm-project-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid var(--tm-border);
+    background: var(--tm-surface-alt);
+    font-size: 0.85rem;
+}
+
+.tm-chip-remove {
+    border: none;
+    background: transparent;
+    color: var(--tm-muted);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+}
+
+.tm-chip-remove:hover {
+    color: var(--tm-text);
+}
+
 .tm-icon-button {
     width: 26px;
     height: 26px;
