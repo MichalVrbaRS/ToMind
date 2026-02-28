@@ -5,7 +5,8 @@
 }
 
 .tm-topbar {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
     justify-content: space-between;
     padding: 0.75rem 1.5rem;
@@ -23,24 +24,20 @@
     gap: 1rem;
 }
 
-.tm-brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: 600;
-}
-
 .tm-logo {
-    width: 1.5rem;
-    height: 1.5rem;
+    width: 2.25rem;
+    height: 2.25rem;
 }
 
-.tm-title {
+.tm-topbar-center {
+    text-align: center;
+    font-weight: 600;
     font-size: 1.05rem;
 }
 
-.tm-topbar-actions {
+.tm-topbar-right {
     display: inline-flex;
+    justify-content: flex-end;
     align-items: center;
     gap: 0.75rem;
 }
@@ -94,6 +91,28 @@
 
 .tm-switch input:checked + .tm-slider::before {
     transform: translateX(20px);
+}
+
+.tm-share-button {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid var(--tm-border);
+    background: var(--tm-surface);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--tm-primary);
+}
+
+.tm-share-button svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+.tm-share-button:hover {
+    background: var(--tm-surface-alt);
 }
 
 .tm-main {

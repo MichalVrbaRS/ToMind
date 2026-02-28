@@ -6,11 +6,15 @@ public sealed class TopBarState
 
     public string Title { get; private set; } = "ToMind";
     public bool ShowCreateButton { get; private set; }
+    public bool ShowShareButton { get; private set; }
+    public string? ShareUrl { get; private set; }
 
-    public void Set(string title, bool showCreateButton)
+    public void Set(string title, bool showCreateButton, bool showShareButton = false, string? shareUrl = null)
     {
         Title = string.IsNullOrWhiteSpace(title) ? "ToMind" : title;
         ShowCreateButton = showCreateButton;
+        ShowShareButton = showShareButton;
+        ShareUrl = showShareButton ? shareUrl : null;
         Changed?.Invoke();
     }
 }

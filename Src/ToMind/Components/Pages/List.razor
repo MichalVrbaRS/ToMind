@@ -8,7 +8,6 @@
 @inject ListSecurityService Security
 @inject ListLocalStorage LocalStorage
 @inject NavigationManager Navigation
-@inject IJSRuntime Js
 @inject TopBarState TopBar
 
 <PageTitle>@_pageTitle</PageTitle>
@@ -24,13 +23,6 @@ else if (_notFound)
 }
 else if (_list is not null)
 {
-    <div class="tm-share-bar">
-        <input class="form-control" value="@_shareUrl" readonly />
-        <button class="btn btn-outline-primary btn-sm" type="button" @onclick="CopyShareAsync">
-            Share
-        </button>
-    </div>
-
     <div class="tm-card tm-list-header">
         <div class="tm-list-info">
             <h1 class="tm-list-title">@_list.Name</h1>
@@ -103,7 +95,7 @@ else if (_list is not null)
                             {
                                 var checkboxId = $"todo-{item.Id}";
                                 var index = orderedTodos.IndexOf(item);
-                                <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2"
+                                <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2 tm-drag-item"
                                     draggable="true"
                                     @ondragstart="() => StartTodoDrag(item)"
                                     @ondragend="ClearTodoDrag"
@@ -170,7 +162,7 @@ else if (_list is not null)
                             {
                                 @foreach (var card in cards)
                                 {
-                                    <div class="tm-card tm-board-card"
+                                    <div class="tm-card tm-board-card tm-drag-item"
                                          draggable="true"
                                          @ondragstart="() => StartCardDrag(card)"
                                          @ondragend="ClearCardDrag"
@@ -212,7 +204,6 @@ else if (_list is not null)
     private bool _requiresPassword;
     private bool _isAuthorized;
     private string _pageTitle = "List";
-    private string? _shareUrl;
     private string? _errorMessage;
     private string? _todoErrorMessage;
     private string _newTodoText = string.Empty;
@@ -235,11 +226,12 @@ else if (_list is not null)
         {
             _notFound = true;
             _isLoading = false;
-            TopBar.Set("ToMind", false);
+            TopBar.Set("ToMind", false, false);
             return;
         }
 
-        TopBar.Set(_list.Name, true);
+        var shareUrl = Navigation.ToAbsoluteUri($"/{ListId}").ToString();
+        TopBar.Set(_list.Name, true, true, shareUrl);
         if (_list.Type == ListType.Todo)
         {
             _todoItems = _list.TodoItems
@@ -256,7 +248,6 @@ else if (_list is not null)
         }
 
         _pageTitle = _list.Name;
-        _shareUrl = Navigation.ToAbsoluteUri($"/{ListId}").ToString();
         _requiresPassword = !string.IsNullOrWhiteSpace(_list.PasswordHash);
         if (!_requiresPassword)
         {
@@ -291,14 +282,6 @@ else if (_list is not null)
         else if (_isAuthorized)
         {
             await LocalStorage.SetLastOpenedListIdAsync(_list.Id);
-        }
-    }
-
-    private async Task CopyShareAsync()
-    {
-        if (!string.IsNullOrWhiteSpace(_shareUrl))
-        {
-            await Js.InvokeVoidAsync("navigator.clipboard.writeText", _shareUrl);
         }
     }
 

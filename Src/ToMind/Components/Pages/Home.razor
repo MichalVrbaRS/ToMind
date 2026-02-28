@@ -16,81 +16,92 @@
 
 <div class="tm-shell">
     <div class="tm-card tm-card-lg">
-        <h1 class="tm-card-title">Create a New List</h1>
-
-        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        @if (_isPreparing)
         {
-            <div class="alert alert-danger">@_errorMessage</div>
+            <div class="tm-prep">
+                <img class="tm-prep-logo" src="images/app-icon.png" alt="ToMind" />
+                <h1 class="tm-card-title">Preparing your workspace...</h1>
+                <p class="text-muted text-center mb-0">Checking your last opened list.</p>
+            </div>
         }
+        else
+        {
+            <h1 class="tm-card-title">Create a New List</h1>
 
-        <EditForm Model="_model" OnValidSubmit="CreateListAsync" FormName="create-list">
-            <DataAnnotationsValidator />
-            <ValidationSummary />
-
-            <div class="mb-3">
-                <label class="form-label" for="name">List Name</label>
-                <InputText id="name" class="form-control" @bind-Value="_model.Name" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="description">Description (optional)</label>
-                <InputTextArea id="description" class="form-control" @bind-Value="_model.Description" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="image">Image</label>
-                <div class="tm-file-row">
-                    <InputFile id="image" class="form-control" OnChange="OnImageSelected" />
-                    @if (!string.IsNullOrWhiteSpace(_imageName))
-                    {
-                        <span class="tm-file-name">@_imageName</span>
-                    }
-                </div>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label">Type</label>
-                <InputRadioGroup class="tm-radio-group" @bind-Value="_model.Type">
-                    <label class="form-check">
-                        <InputRadio class="form-check-input" Value="@ListType.Todo" />
-                        <span class="form-check-label">Todo List</span>
-                    </label>
-                    <label class="form-check">
-                        <InputRadio class="form-check-input" Value="@ListType.Board" />
-                        <span class="form-check-label">Kanban Board</span>
-                    </label>
-                </InputRadioGroup>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="project">Project</label>
-                <InputText id="project" class="form-control" @bind-Value="_model.ProjectName" placeholder="Optional project name" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-check">
-                    <InputCheckbox class="form-check-input" @bind-Value="_model.ProtectWithPassword" />
-                    <span class="form-check-label">Protect with password</span>
-                </label>
-            </div>
-
-            @if (_model.ProtectWithPassword)
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
             {
-                <div class="mb-3">
-                    <label class="form-label" for="password">Password</label>
-                    <InputText id="password" type="password" class="form-control" @bind-Value="_model.Password" />
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label" for="confirmPassword">Confirm Password</label>
-                    <InputText id="confirmPassword" type="password" class="form-control" @bind-Value="_model.ConfirmPassword" />
-                </div>
+                <div class="alert alert-danger">@_errorMessage</div>
             }
 
-            <button class="btn btn-primary w-100" type="submit" disabled="@_isSubmitting">
-                Create
-            </button>
-        </EditForm>
+            <EditForm Model="_model" OnValidSubmit="CreateListAsync" FormName="create-list">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="mb-3">
+                    <label class="form-label" for="name">List Name</label>
+                    <InputText id="name" class="form-control" @bind-Value="_model.Name" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="description">Description (optional)</label>
+                    <InputTextArea id="description" class="form-control" @bind-Value="_model.Description" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="image">Image</label>
+                    <div class="tm-file-row">
+                        <InputFile id="image" class="form-control" OnChange="OnImageSelected" />
+                        @if (!string.IsNullOrWhiteSpace(_imageName))
+                        {
+                            <span class="tm-file-name">@_imageName</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Type</label>
+                    <InputRadioGroup class="tm-radio-group" @bind-Value="_model.Type">
+                        <label class="form-check">
+                            <InputRadio class="form-check-input" Value="@ListType.Todo" />
+                            <span class="form-check-label">Todo List</span>
+                        </label>
+                        <label class="form-check">
+                            <InputRadio class="form-check-input" Value="@ListType.Board" />
+                            <span class="form-check-label">Kanban Board</span>
+                        </label>
+                    </InputRadioGroup>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="project">Project</label>
+                    <InputText id="project" class="form-control" @bind-Value="_model.ProjectName" placeholder="Optional project name" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="_model.ProtectWithPassword" />
+                        <span class="form-check-label">Protect with password</span>
+                    </label>
+                </div>
+
+                @if (_model.ProtectWithPassword)
+                {
+                    <div class="mb-3">
+                        <label class="form-label" for="password">Password</label>
+                        <InputText id="password" type="password" class="form-control" @bind-Value="_model.Password" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="confirmPassword">Confirm Password</label>
+                        <InputText id="confirmPassword" type="password" class="form-control" @bind-Value="_model.ConfirmPassword" />
+                    </div>
+                }
+
+                <button class="btn btn-primary w-100" type="submit" disabled="@_isSubmitting">
+                    Create
+                </button>
+            </EditForm>
+        }
     </div>
 </div>
 
@@ -101,10 +112,11 @@
     private string? _imageName;
     private string? _errorMessage;
     private bool _isSubmitting;
+    private bool _isPreparing = true;
 
     protected override void OnInitialized()
     {
-        TopBar.Set("ToMind", false);
+        TopBar.Set("ToMind", false, false);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -118,6 +130,8 @@
         var query = QueryHelpers.ParseQuery(uri.Query);
         if (query.TryGetValue("new", out var value) && value == "1")
         {
+            _isPreparing = false;
+            StateHasChanged();
             return;
         }
 
@@ -125,7 +139,11 @@
         if (lastOpened is not null)
         {
             Navigation.NavigateTo($"/{lastOpened}");
+            return;
         }
+
+        _isPreparing = false;
+        StateHasChanged();
     }
 
     private void OnImageSelected(InputFileChangeEventArgs args)

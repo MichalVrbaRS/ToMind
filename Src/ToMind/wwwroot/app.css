@@ -121,6 +121,18 @@ h1:focus {
     justify-content: center;
 }
 
+.tm-prep {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.tm-prep-logo {
+    width: 4.5rem;
+    height: 4.5rem;
+}
+
 .tm-card {
     background: var(--tm-surface);
     border: 1px solid var(--tm-border);
@@ -269,6 +281,26 @@ h1:focus {
 .tm-board-card {
     padding: 0.75rem;
     margin-bottom: 0;
+}
+
+.tm-drag-item {
+    cursor: grab;
+}
+
+.tm-drag-item:active {
+    cursor: grabbing;
+}
+
+.tm-drag-ghost {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    opacity: 1;
+    background: var(--tm-surface);
+    border: 1px solid var(--tm-border);
+    border-radius: 12px;
+    box-shadow: var(--tm-shadow);
 }
 
 .list-group {

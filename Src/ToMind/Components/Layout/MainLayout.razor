@@ -8,10 +8,7 @@
 <div class="tm-app">
     <header class="tm-topbar">
         <div class="tm-topbar-left">
-            <div class="tm-brand">
-                <img class="tm-logo" src="images/app-icon.png" alt="ToMind" />
-                <span class="tm-title">@TopBar.Title</span>
-            </div>
+            <img class="tm-logo" src="images/app-icon.png" alt="ToMind" />
             @if (TopBar.ShowCreateButton)
             {
                 <button class="btn btn-primary btn-sm" type="button" @onclick="CreateNewList">
@@ -19,7 +16,16 @@
                 </button>
             }
         </div>
-        <div class="tm-topbar-actions">
+        <div class="tm-topbar-center">@TopBar.Title</div>
+        <div class="tm-topbar-right">
+            @if (TopBar.ShowShareButton && !string.IsNullOrWhiteSpace(TopBar.ShareUrl))
+            {
+                <button class="tm-share-button" type="button" title="Copy share link" @onclick="CopyShareAsync">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M18 8a3 3 0 0 0-2.82 2H8.82a3 3 0 0 0-5.64 0 3 3 0 0 0 2.82 4 3 3 0 0 0 2.82-2h6.36A3 3 0 1 0 18 8Zm0 8a3 3 0 0 0-2.82 2H8.82a3 3 0 0 0-5.64 0 3 3 0 0 0 2.82 4 3 3 0 0 0 2.82-2h6.36A3 3 0 1 0 18 16Z"/>
+                    </svg>
+                </button>
+            }
             <span class="tm-mode-label">@(_currentTheme == "dark" ? "Dark Mode" : "Light Mode")</span>
             <label class="tm-switch">
                 <input type="checkbox" checked="@(_currentTheme == "dark")" @onchange="ToggleThemeAsync" />
@@ -52,6 +58,14 @@
     private async Task ToggleThemeAsync()
     {
         _currentTheme = await Js.InvokeAsync<string>("ToMindTheme.toggleTheme");
+    }
+
+    private async Task CopyShareAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(TopBar.ShareUrl))
+        {
+            await Js.InvokeVoidAsync("navigator.clipboard.writeText", TopBar.ShareUrl);
+        }
     }
 
     private async Task CreateNewList()
