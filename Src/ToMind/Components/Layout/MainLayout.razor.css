@@ -129,6 +129,46 @@
     background: var(--tm-surface-alt);
 }
 
+.tm-share-button:active {
+    transform: scale(0.98);
+}
+
+@media (max-width: 640px) {
+    .tm-topbar {
+        grid-template-columns: 1fr;
+        row-gap: 0.5rem;
+        padding: 0.6rem 0.85rem;
+    }
+
+    .tm-topbar-left,
+    .tm-topbar-center,
+    .tm-topbar-right {
+        justify-content: center;
+        text-align: center;
+    }
+
+    .tm-topbar-right {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .tm-mode-label {
+        display: none;
+    }
+
+    .tm-logo {
+        width: 1.9rem;
+        height: 1.9rem;
+    }
+
+    .tm-topbar-title {
+        font-size: 1rem;
+    }
+
+    .tm-topbar-sub {
+        font-size: 0.75rem;
+    }
+}
 .tm-main {
     display: flex;
     justify-content: center;
