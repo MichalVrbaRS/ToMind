@@ -1,6 +1,7 @@
 @page "/{ListId:guid}"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Web
 @using Microsoft.EntityFrameworkCore
 @using ToMind.Data
 @using ToMind.Services
@@ -23,23 +24,18 @@ else if (_notFound)
 }
 else if (_list is not null)
 {
-    <div class="tm-card tm-list-header">
-        <div class="tm-list-info">
-            <h1 class="tm-list-title">@_list.Name</h1>
-            @if (!string.IsNullOrWhiteSpace(_list.ProjectName))
-            {
-                <div class="tm-list-meta">Project: @_list.ProjectName</div>
-            }
-            @if (!string.IsNullOrWhiteSpace(_list.Description))
-            {
+    @if (!string.IsNullOrWhiteSpace(_list.Description))
+    {
+        <div class="tm-card tm-list-header">
+            <div class="tm-list-info">
                 <div class="tm-list-meta">@_list.Description</div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_list.ImagePath))
+            {
+                <img class="tm-list-image" src="@_list.ImagePath" alt="List banner" />
             }
         </div>
-        @if (!string.IsNullOrWhiteSpace(_list.ImagePath))
-        {
-            <img class="tm-list-image" src="@_list.ImagePath" alt="List banner" />
-        }
-    </div>
+    }
 
     @if (_requiresPassword && !_isAuthorized)
     {
@@ -80,7 +76,7 @@ else if (_list is not null)
                         <div class="alert alert-danger">@_todoErrorMessage</div>
                     }
                     <div class="input-group mb-3">
-                        <InputText class="form-control" placeholder="Add item" @bind-Value="_newTodoText" />
+                        <input class="form-control" placeholder="Add item" @bind="_newTodoText" @bind:event="oninput" @onkeydown="HandleTodoKeyDown" />
                         <button class="btn btn-primary" type="button" @onclick="AddTodoAsync">Add</button>
                     </div>
 
@@ -162,23 +158,52 @@ else if (_list is not null)
                             {
                                 @foreach (var card in cards)
                                 {
+                                    var isEditing = _editingCardId == card.Id;
                                     <div class="tm-card tm-board-card tm-drag-item"
-                                         draggable="true"
+                                         draggable="@(!isEditing)"
                                          @ondragstart="() => StartCardDrag(card)"
                                          @ondragend="ClearCardDrag"
                                          @ondragover:preventDefault
                                          @ondrop="() => DropCardOnCardAsync(card)">
                                         <div class="d-flex justify-content-between align-items-start gap-2">
-                                            <div>
-                                                <div class="fw-semibold">@card.Title</div>
-                                                @if (!string.IsNullOrWhiteSpace(card.Description))
+                                            <div class="flex-grow-1">
+                                                @if (isEditing)
                                                 {
-                                                    <div class="text-muted small">@card.Description</div>
+                                                    @if (!string.IsNullOrWhiteSpace(_editCardErrorMessage))
+                                                    {
+                                                        <div class="alert alert-danger">@_editCardErrorMessage</div>
+                                                    }
+                                                    <InputText class="form-control mb-2" placeholder="Card title" @bind-Value="_editCardTitle" />
+                                                    <InputTextArea class="form-control mb-2" placeholder="Description (optional)" @bind-Value="_editCardDescription" />
+                                                    <div class="d-flex gap-2">
+                                                        <button class="btn btn-primary btn-sm" type="button" @onclick="() => SaveCardEditAsync(card)">Save</button>
+                                                        <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="CancelCardEdit">Cancel</button>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="fw-semibold">@card.Title</div>
+                                                    @if (!string.IsNullOrWhiteSpace(card.Description))
+                                                    {
+                                                        <div class="text-muted small">@card.Description</div>
+                                                    }
                                                 }
                                             </div>
-                                            <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => DeleteCardAsync(card)">
-                                                Delete
-                                            </button>
+                                            @if (!isEditing)
+                                            {
+                                                <div class="d-flex gap-1">
+                                                    <button class="tm-icon-button" type="button" title="Edit card" @onclick="() => StartCardEdit(card)">
+                                                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                                                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm18.71-11.04a1.003 1.003 0 0 0 0-1.42l-2.5-2.5a1.003 1.003 0 0 0-1.42 0L15.13 3.9l3.75 3.75 2.83-2.83Z"/>
+                                                        </svg>
+                                                    </button>
+                                                    <button class="tm-icon-button tm-icon-danger" type="button" title="Delete card" @onclick="() => DeleteCardAsync(card)">
+                                                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                                                            <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9Z"/>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            }
                                         </div>
                                     </div>
                                 }
@@ -213,6 +238,10 @@ else if (_list is not null)
     private string _newCardTitle = string.Empty;
     private string? _newCardDescription;
     private BoardColumn? _activeColumnInput;
+    private int? _editingCardId;
+    private string _editCardTitle = string.Empty;
+    private string? _editCardDescription;
+    private string? _editCardErrorMessage;
     private readonly PasswordModel _passwordModel = new();
 
     protected override async Task OnInitializedAsync()
@@ -224,6 +253,14 @@ else if (_list is not null)
             .FirstOrDefaultAsync(l => l.Id == ListId);
         if (_list is null)
         {
+            var lastOpened = await LocalStorage.GetLastOpenedListIdAsync();
+            if (lastOpened == ListId)
+            {
+                await LocalStorage.ClearLastOpenedListIdAsync();
+                Navigation.NavigateTo("/?new=1");
+                return;
+            }
+
             _notFound = true;
             _isLoading = false;
             TopBar.Set("ToMind", false, false);
@@ -342,6 +379,14 @@ else if (_list is not null)
             .OrderBy(c => c.SortOrder)
             .ThenBy(c => c.Id)
             .ToList();
+    }
+
+    private async Task HandleTodoKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await AddTodoAsync();
+        }
     }
 
     private async Task AddTodoAsync()
@@ -554,6 +599,43 @@ else if (_list is not null)
         _activeColumnInput = null;
     }
 
+    private void StartCardEdit(BoardCard card)
+    {
+        _editCardErrorMessage = null;
+        _editingCardId = card.Id;
+        _editCardTitle = card.Title;
+        _editCardDescription = card.Description;
+    }
+
+    private void CancelCardEdit()
+    {
+        _editCardErrorMessage = null;
+        _editingCardId = null;
+        _editCardTitle = string.Empty;
+        _editCardDescription = null;
+    }
+
+    private async Task SaveCardEditAsync(BoardCard card)
+    {
+        if (_list is null || _list.Type != ListType.Board || _editingCardId != card.Id)
+        {
+            return;
+        }
+
+        var title = _editCardTitle.Trim();
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            _editCardErrorMessage = "Enter a card title.";
+            return;
+        }
+
+        _editCardErrorMessage = null;
+        card.Title = title;
+        card.Description = string.IsNullOrWhiteSpace(_editCardDescription) ? null : _editCardDescription.Trim();
+        await Db.SaveChangesAsync();
+        CancelCardEdit();
+    }
+
     private void StartCardDrag(BoardCard card)
     {
         _draggedCardId = card.Id;
@@ -658,6 +740,11 @@ else if (_list is not null)
         if (_list is null || _list.Type != ListType.Board)
         {
             return;
+        }
+
+        if (_editingCardId == card.Id)
+        {
+            CancelCardEdit();
         }
 
         Db.BoardCards.Remove(card);

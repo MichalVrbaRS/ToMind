@@ -2,6 +2,7 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Forms
 @using ToMind.Data
 @using ToMind.Services
@@ -22,6 +23,17 @@
                 <img class="tm-prep-logo" src="images/app-icon.png" alt="ToMind" />
                 <h1 class="tm-card-title">Preparing your workspace...</h1>
                 <p class="text-muted text-center mb-0">Checking your last opened list.</p>
+                <div class="tm-prep-actions">
+                    <button class="btn btn-outline-secondary" type="button" @onclick="SkipToCreate">
+                        Create new
+                    </button>
+                    @if (_lastOpenedId is not null && !string.IsNullOrWhiteSpace(_lastOpenedName))
+                    {
+                        <button class="btn btn-primary" type="button" @onclick="OpenLastList">
+                            Open @_lastOpenedName
+                        </button>
+                    }
+                </div>
             </div>
         }
         else
@@ -113,6 +125,9 @@
     private string? _errorMessage;
     private bool _isSubmitting;
     private bool _isPreparing = true;
+    private Guid? _lastOpenedId;
+    private string? _lastOpenedName;
+    private bool _skipAutoNav;
 
     protected override void OnInitialized()
     {
@@ -128,22 +143,61 @@
 
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
         var query = QueryHelpers.ParseQuery(uri.Query);
-        if (query.TryGetValue("new", out var value) && value == "1")
-        {
-            _isPreparing = false;
-            StateHasChanged();
-            return;
-        }
+        var forceNew = query.TryGetValue("new", out var value) && value == "1";
 
+        await Db.Database.EnsureCreatedAsync();
         var lastOpened = await LocalStorage.GetLastOpenedListIdAsync();
         if (lastOpened is not null)
         {
-            Navigation.NavigateTo($"/{lastOpened}");
+            var list = await Db.Lists.AsNoTracking().FirstOrDefaultAsync(l => l.Id == lastOpened);
+            if (list is not null)
+            {
+                _lastOpenedId = list.Id;
+                _lastOpenedName = list.Name;
+            }
+            else
+            {
+                await LocalStorage.ClearLastOpenedListIdAsync();
+            }
+        }
+
+        StateHasChanged();
+        if (!forceNew)
+        {
+            await Task.Delay(5000);
+        }
+
+        if (_skipAutoNav)
+        {
+            return;
+        }
+
+        if (!forceNew && _lastOpenedId is not null)
+        {
+            Navigation.NavigateTo($"/{_lastOpenedId}");
             return;
         }
 
         _isPreparing = false;
         StateHasChanged();
+    }
+
+    private void SkipToCreate()
+    {
+        _skipAutoNav = true;
+        _isPreparing = false;
+        StateHasChanged();
+    }
+
+    private void OpenLastList()
+    {
+        if (_lastOpenedId is null)
+        {
+            return;
+        }
+
+        _skipAutoNav = true;
+        Navigation.NavigateTo($"/{_lastOpenedId}");
     }
 
     private void OnImageSelected(InputFileChangeEventArgs args)

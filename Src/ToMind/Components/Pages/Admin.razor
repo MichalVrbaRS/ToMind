@@ -1,0 +1,149 @@
+@page "/admin"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using ToMind.Data
+@using ToMind.Services
+@inject ToMindDbContext Db
+@inject TopBarState TopBar
+@inject IJSRuntime Js
+@inject NavigationManager Navigation
+
+<PageTitle>Admin</PageTitle>
+
+@if (!_isAuthorized)
+{
+    <div class="tm-shell">
+        <div class="tm-card tm-card-lg">
+            <h1 class="tm-card-title">Admin Access</h1>
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            {
+                <div class="alert alert-danger">@_errorMessage</div>
+            }
+            <EditForm Model="_passwordModel" OnValidSubmit="UnlockAsync" FormName="admin-login">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div class="mb-3">
+                    <label class="form-label" for="adminPassword">Password</label>
+                    <InputText id="adminPassword" type="password" class="form-control" @bind-Value="_passwordModel.Password" />
+                </div>
+                <button class="btn btn-primary w-100" type="submit">Enter</button>
+            </EditForm>
+        </div>
+    </div>
+}
+else
+{
+    <div class="tm-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="h4 mb-0">All Lists</h1>
+            <span class="text-muted">@_lists.Count list(s)</span>
+        </div>
+
+        @if (_lists.Count == 0)
+        {
+            <p class="text-muted mb-0">No lists available.</p>
+        }
+        else
+        {
+            <div class="tm-admin-list">
+                @foreach (var list in _lists)
+                {
+                    <div class="tm-admin-row">
+                        <div>
+                            <div class="fw-semibold">@list.Name</div>
+                            <div class="tm-list-meta">
+                                @GetListTypeName(list.Type) · Created @FormatDate(list.CreatedAtUtc)
+                            </div>
+                        </div>
+                        <div class="tm-admin-actions">
+                            <button class="tm-icon-button tm-admin-action" type="button" title="Copy link" @onclick="() => CopyLinkAsync(list)">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M7.5 7A3.5 3.5 0 0 1 11 3.5h5A3.5 3.5 0 0 1 19.5 7v5A3.5 3.5 0 0 1 16 15.5h-5A3.5 3.5 0 0 1 7.5 12v-5Zm-3 5A3.5 3.5 0 0 1 8 8.5h.5V12A2.5 2.5 0 0 0 11 14.5h5v.5A3.5 3.5 0 0 1 12.5 18.5h-5A3.5 3.5 0 0 1 4 15v-3Z"/>
+                                </svg>
+                            </button>
+                            <button class="tm-icon-button tm-admin-action tm-admin-danger" type="button" title="Delete list" @onclick="() => DeleteListAsync(list)">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM7 9h2v9H7V9Z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private const string AdminPassword = "todoadmin!1";
+    private readonly PasswordModel _passwordModel = new();
+    private bool _isAuthorized;
+    private string? _errorMessage;
+    private List<MindList> _lists = new();
+
+    protected override void OnInitialized()
+    {
+        TopBar.Set("Admin", false, false);
+    }
+
+    private async Task UnlockAsync()
+    {
+        if (!string.Equals(_passwordModel.Password, AdminPassword, StringComparison.Ordinal))
+        {
+            _errorMessage = "Incorrect password.";
+            return;
+        }
+
+        _errorMessage = null;
+        _isAuthorized = true;
+        await LoadListsAsync();
+    }
+
+    private async Task LoadListsAsync()
+    {
+        await Db.Database.EnsureCreatedAsync();
+        _lists = await Db.Lists
+            .OrderByDescending(l => l.CreatedAtUtc)
+            .ToListAsync();
+    }
+
+    private async Task CopyLinkAsync(MindList list)
+    {
+        var url = Navigation.ToAbsoluteUri($"/{list.Id}").ToString();
+        await Js.InvokeVoidAsync("navigator.clipboard.writeText", url);
+    }
+
+    private async Task DeleteListAsync(MindList list)
+    {
+        var confirmed = await Js.InvokeAsync<bool>("confirm", $"Delete '{list.Name}'?");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        var todos = Db.TodoItems.Where(t => t.ListId == list.Id);
+        var cards = Db.BoardCards.Where(c => c.ListId == list.Id);
+        Db.TodoItems.RemoveRange(todos);
+        Db.BoardCards.RemoveRange(cards);
+        Db.Lists.Remove(list);
+        await Db.SaveChangesAsync();
+        _lists.Remove(list);
+    }
+
+    private static string GetListTypeName(ListType type)
+    {
+        return type == ListType.Board ? "Kanban" : "Todo";
+    }
+
+    private static string FormatDate(DateTime utc)
+    {
+        return utc.ToLocalTime().ToString("g");
+    }
+
+    private sealed class PasswordModel
+    {
+        [Required]
+        public string Password { get; set; } = string.Empty;
+    }
+}

@@ -133,6 +133,14 @@ h1:focus {
     height: 4.5rem;
 }
 
+.tm-prep-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
 .tm-card {
     background: var(--tm-surface);
     border: 1px solid var(--tm-border);
@@ -267,6 +275,17 @@ h1:focus {
     line-height: 1;
 }
 
+.tm-icon-button svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+}
+
+.tm-icon-danger {
+    color: #e03a3a;
+    border-color: #e03a3a;
+}
+
 .tm-icon-button:hover {
     background: var(--tm-surface-alt);
 }
@@ -316,6 +335,43 @@ h1:focus {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+}
+
+.tm-admin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.tm-admin-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--tm-border);
+    background: var(--tm-surface-alt);
+}
+
+.tm-admin-actions {
+    display: inline-flex;
+    gap: 0.5rem;
+}
+
+.tm-admin-action {
+    width: 32px;
+    height: 32px;
+}
+
+.tm-admin-action svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.tm-admin-danger {
+    color: #e03a3a;
 }
 
 .blazor-error-boundary {

@@ -55,6 +55,17 @@
         TopBar.Changed += OnTopBarChanged;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _currentTheme = await Js.InvokeAsync<string>("ToMindTheme.getTheme");
+        StateHasChanged();
+    }
+
     private async Task ToggleThemeAsync()
     {
         _currentTheme = await Js.InvokeAsync<string>("ToMindTheme.toggleTheme");
