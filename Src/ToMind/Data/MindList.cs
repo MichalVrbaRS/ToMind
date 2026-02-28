@@ -8,6 +8,7 @@ public sealed class MindList
     public string? ImagePath { get; set; }
     public ListType Type { get; set; }
     public string? ProjectName { get; set; }
+    public string? PeopleJson { get; set; }
     public string? PasswordHash { get; set; }
     public string? RememberMeTokenHash { get; set; }
     public DateTime CreatedAtUtc { get; set; }

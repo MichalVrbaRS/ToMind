@@ -1,6 +1,7 @@
 @page "/admin"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using System.ComponentModel.DataAnnotations
+@using System.Data.Common
 @using Microsoft.EntityFrameworkCore
 @using ToMind.Data
 @using ToMind.Services
@@ -103,6 +104,7 @@ else
     private async Task LoadListsAsync()
     {
         await Db.Database.EnsureCreatedAsync();
+        await EnsurePeopleSchemaAsync();
         _lists = await Db.Lists
             .OrderByDescending(l => l.CreatedAtUtc)
             .ToListAsync();
@@ -139,6 +141,39 @@ else
     private static string FormatDate(DateTime utc)
     {
         return utc.ToLocalTime().ToString("g");
+    }
+
+    private async Task EnsurePeopleSchemaAsync()
+    {
+        var connection = Db.Database.GetDbConnection();
+        await connection.OpenAsync();
+        try
+        {
+            await EnsureColumnAsync(connection, "Lists", "PeopleJson");
+        }
+        finally
+        {
+            await connection.CloseAsync();
+        }
+    }
+
+    private static async Task EnsureColumnAsync(DbConnection connection, string tableName, string columnName)
+    {
+        await using var checkCommand = connection.CreateCommand();
+        checkCommand.CommandText = $"PRAGMA table_info({tableName});";
+        await using var reader = await checkCommand.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var name = reader.GetString(1);
+            if (string.Equals(name, columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+
+        await using var alterCommand = connection.CreateCommand();
+        alterCommand.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} TEXT";
+        await alterCommand.ExecuteNonQueryAsync();
     }
 
     private sealed class PasswordModel

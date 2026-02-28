@@ -8,6 +8,7 @@ public sealed class BoardCard
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? ProjectName { get; set; }
+    public string? AssigneeName { get; set; }
     public BoardColumn Column { get; set; }
     public int SortOrder { get; set; }
 }

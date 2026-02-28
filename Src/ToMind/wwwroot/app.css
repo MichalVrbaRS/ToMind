@@ -297,6 +297,78 @@ h1:focus {
     max-width: 320px;
 }
 
+.tm-assignee-input {
+    min-width: 140px;
+    max-width: 200px;
+}
+
+.tm-assignee-combo {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-width: 160px;
+    max-width: 220px;
+    flex: 0 0 auto;
+}
+
+.tm-assignee-combo .tm-assignee-input {
+    width: 100%;
+    padding-right: 1.6rem;
+}
+
+.tm-assignee-toggle {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
+    color: var(--tm-muted);
+    font-size: 0.85rem;
+    line-height: 1;
+    padding: 0;
+}
+
+.tm-assignee-toggle-sm {
+    right: 6px;
+    font-size: 0.75rem;
+}
+
+.tm-assignee-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--tm-surface);
+    border: 1px solid var(--tm-border);
+    border-radius: 10px;
+    box-shadow: var(--tm-shadow);
+    z-index: 20;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.tm-assignee-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+    padding: 0.45rem 0.6rem;
+    color: var(--tm-text);
+}
+
+.tm-assignee-option:hover {
+    background: var(--tm-surface-alt);
+}
+
+
+.tm-assignee {
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--tm-muted);
+}
+
 .tm-project-chips {
     display: flex;
     flex-wrap: wrap;
@@ -367,6 +439,15 @@ h1:focus {
 .tm-board-card {
     padding: 0.75rem;
     margin-bottom: 0;
+}
+
+.tm-board-card:not(.tm-editing) {
+    user-select: none;
+    -webkit-user-drag: element;
+}
+
+.tm-board-card:not(.tm-editing) * {
+    -webkit-user-drag: element;
 }
 
 .tm-drag-item {

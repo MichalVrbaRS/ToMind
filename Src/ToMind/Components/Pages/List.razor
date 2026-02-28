@@ -82,6 +82,13 @@ else if (_list is not null)
             </div>
         }
 
+        <datalist id="tm-people-list">
+            @foreach (var person in _people)
+            {
+                <option value="@person"></option>
+            }
+        </datalist>
+
         @if (_list.Type == ListType.Todo)
         {
             var orderedTodos = GetOrderedTodos();
@@ -93,6 +100,23 @@ else if (_list is not null)
                     }
                     <div class="input-group mb-3">
                         <input class="form-control" placeholder="Add item" @bind="_newTodoText" @bind:event="oninput" @onkeydown="HandleTodoKeyDown" />
+                        <div class="tm-assignee-combo">
+                            <input class="form-control tm-assignee-input" placeholder="Assignee (optional)" list="tm-people-list"
+                                   @bind="_newTodoAssignee" @bind:event="oninput" />
+                            @if (_people.Count > 0)
+                            {
+                                <button class="tm-assignee-toggle" type="button" title="Pick assignee" @onclick="() => ToggleAssigneePicker(NewTodoPickerKey)">▾</button>
+                                @if (IsAssigneePickerOpen(NewTodoPickerKey))
+                                {
+                                    <div class="tm-assignee-menu">
+                                        @foreach (var person in _people)
+                                        {
+                                            <button class="tm-assignee-option" type="button" @onclick="() => SelectNewTodoAssignee(person)">@person</button>
+                                        }
+                                    </div>
+                                }
+                            }
+                        </div>
                         <button class="btn btn-primary" type="button" @onclick="AddTodoAsync">Add</button>
                     </div>
 
@@ -120,16 +144,37 @@ else if (_list is not null)
                                             @item.Text
                                         </label>
                                     </div>
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <button class="btn btn-outline-secondary" type="button" @onclick="() => MoveTodoAsync(item, -1)" disabled="@(index <= 0)">
-                                            Up
-                                        </button>
-                                        <button class="btn btn-outline-secondary" type="button" @onclick="() => MoveTodoAsync(item, 1)" disabled="@(index >= orderedTodos.Count - 1)">
-                                            Down
-                                        </button>
-                                        <button class="btn btn-outline-danger" type="button" @onclick="() => DeleteTodoAsync(item)">
-                                            Delete
-                                        </button>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="tm-assignee-combo">
+                                            <input class="form-control form-control-sm tm-assignee-input" placeholder="Assignee"
+                                                   list="tm-people-list" value="@item.AssigneeName"
+                                                   @onchange="args => UpdateTodoAssigneeAsync(item, args)" />
+                                            @if (_people.Count > 0)
+                                            {
+                                                var todoKey = $"todo-{item.Id}";
+                                                <button class="tm-assignee-toggle tm-assignee-toggle-sm" type="button" title="Pick assignee" @onclick="() => ToggleAssigneePicker(todoKey)">▾</button>
+                                                @if (IsAssigneePickerOpen(todoKey))
+                                                {
+                                                    <div class="tm-assignee-menu">
+                                                        @foreach (var person in _people)
+                                                        {
+                                                            <button class="tm-assignee-option" type="button" @onclick="() => SelectTodoAssigneeAsync(item, person)">@person</button>
+                                                        }
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-secondary" type="button" @onclick="() => MoveTodoAsync(item, -1)" disabled="@(index <= 0)">
+                                                Up
+                                            </button>
+                                            <button class="btn btn-outline-secondary" type="button" @onclick="() => MoveTodoAsync(item, 1)" disabled="@(index >= orderedTodos.Count - 1)">
+                                                Down
+                                            </button>
+                                            <button class="btn btn-outline-danger" type="button" @onclick="() => DeleteTodoAsync(item)">
+                                                Delete
+                                            </button>
+                                        </div>
                                     </div>
                                 </li>
                             }
@@ -159,6 +204,24 @@ else if (_list is not null)
                                 }
                                 <InputText class="form-control" placeholder="Card title" @bind-Value="_newCardTitle" />
                                 <InputTextArea class="form-control" placeholder="Description (optional)" @bind-Value="_newCardDescription" />
+                                <div class="tm-assignee-combo">
+                                    <input class="form-control tm-assignee-input" placeholder="Assignee (optional)"
+                                           list="tm-people-list" @bind="_newCardAssignee" @bind:event="oninput" />
+                                    @if (_people.Count > 0)
+                                    {
+                                        var newCardKey = $"new-card-{column}";
+                                        <button class="tm-assignee-toggle" type="button" title="Pick assignee" @onclick="() => ToggleAssigneePicker(newCardKey)">▾</button>
+                                        @if (IsAssigneePickerOpen(newCardKey))
+                                        {
+                                            <div class="tm-assignee-menu">
+                                                @foreach (var person in _people)
+                                                {
+                                                    <button class="tm-assignee-option" type="button" @onclick="() => SelectNewCardAssignee(person)">@person</button>
+                                                }
+                                            </div>
+                                        }
+                                    }
+                                </div>
                                 <div class="d-flex gap-2">
                                     <button class="btn btn-primary btn-sm" type="button" @onclick="() => AddCardToColumnAsync(column)">Add</button>
                                     <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="ClearColumnInput">Cancel</button>
@@ -175,7 +238,7 @@ else if (_list is not null)
                                 @foreach (var card in cards)
                                 {
                                     var isEditing = _editingCardId == card.Id;
-                                    <div class="tm-card tm-board-card tm-drag-item"
+                                    <div class="tm-card tm-board-card tm-drag-item @(isEditing ? "tm-editing" : null)"
                                          draggable="@(!isEditing)"
                                          @ondragstart="() => StartCardDrag(card)"
                                          @ondragend="ClearCardDrag"
@@ -191,6 +254,24 @@ else if (_list is not null)
                                                     }
                                                     <InputText class="form-control mb-2" placeholder="Card title" @bind-Value="_editCardTitle" />
                                                     <InputTextArea class="form-control mb-2" placeholder="Description (optional)" @bind-Value="_editCardDescription" />
+                                                    <div class="tm-assignee-combo">
+                                                        <input class="form-control mb-2 tm-assignee-input" placeholder="Assignee (optional)"
+                                                               list="tm-people-list" @bind="_editCardAssignee" @bind:event="oninput" />
+                                                        @if (_people.Count > 0)
+                                                        {
+                                                            var editKey = $"edit-card-{card.Id}";
+                                                            <button class="tm-assignee-toggle" type="button" title="Pick assignee" @onclick="() => ToggleAssigneePicker(editKey)">▾</button>
+                                                            @if (IsAssigneePickerOpen(editKey))
+                                                            {
+                                                                <div class="tm-assignee-menu">
+                                                                    @foreach (var person in _people)
+                                                                    {
+                                                                        <button class="tm-assignee-option" type="button" @onclick="() => SelectEditCardAssignee(person)">@person</button>
+                                                                    }
+                                                                </div>
+                                                            }
+                                                        }
+                                                    </div>
                                                     <div class="d-flex gap-2">
                                                         <button class="btn btn-primary btn-sm" type="button" @onclick="() => SaveCardEditAsync(card)">Save</button>
                                                         <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="CancelCardEdit">Cancel</button>
@@ -202,6 +283,10 @@ else if (_list is not null)
                                                     @if (!string.IsNullOrWhiteSpace(card.Description))
                                                     {
                                                         <div class="text-muted small">@card.Description</div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(card.AssigneeName))
+                                                    {
+                                                        <div class="tm-assignee">@card.AssigneeName</div>
                                                     }
                                                 }
                                             </div>
@@ -253,9 +338,14 @@ else if (_list is not null)
     private string? _boardErrorMessage;
     private string _newCardTitle = string.Empty;
     private string? _newCardDescription;
+    private string? _newCardAssignee;
     private BoardColumn? _activeColumnInput;
     private List<string> _projects = new();
     private string? _activeProject;
+    private List<string> _people = new();
+    private string? _newTodoAssignee;
+    private string? _activeAssigneePicker;
+    private const string NewTodoPickerKey = "new-todo";
     private bool _isAddingProject;
     private string _newProjectName = string.Empty;
     private string? _projectErrorMessage;
@@ -264,13 +354,14 @@ else if (_list is not null)
     private int? _editingCardId;
     private string _editCardTitle = string.Empty;
     private string? _editCardDescription;
+    private string? _editCardAssignee;
     private string? _editCardErrorMessage;
     private readonly PasswordModel _passwordModel = new();
 
     protected override async Task OnInitializedAsync()
     {
         await Db.Database.EnsureCreatedAsync();
-        await EnsureProjectSchemaAsync();
+        await EnsureSchemaAsync();
         _list = await Db.Lists
             .Include(l => l.TodoItems)
             .Include(l => l.BoardCards)
@@ -309,6 +400,7 @@ else if (_list is not null)
         }
 
         await InitializeProjectsAsync();
+        await InitializePeopleAsync();
 
         _pageTitle = _list.Name;
         _requiresPassword = !string.IsNullOrWhiteSpace(_list.PasswordHash);
@@ -441,11 +533,14 @@ else if (_list is not null)
             .Select(i => i.SortOrder)
             .DefaultIfEmpty(-1)
             .Max() + 1;
+        var assignee = NormalizeAssignee(_newTodoAssignee);
+        await AddPersonIfNewAsync(assignee);
         var item = new TodoItem
         {
             ListId = _list.Id,
             Text = text,
             ProjectName = _activeProject,
+            AssigneeName = assignee,
             IsDone = false,
             SortOrder = nextOrder
         };
@@ -453,6 +548,8 @@ else if (_list is not null)
         await Db.SaveChangesAsync();
         _todoItems.Add(item);
         _newTodoText = string.Empty;
+        _newTodoAssignee = null;
+        CloseAssigneePicker();
     }
 
     private void StartTodoDrag(TodoItem item)
@@ -527,6 +624,24 @@ else if (_list is not null)
         await Db.SaveChangesAsync();
     }
 
+    private async Task UpdateTodoAssigneeAsync(TodoItem item, ChangeEventArgs args)
+    {
+        await SetTodoAssigneeAsync(item, args.Value?.ToString());
+    }
+
+    private async Task SetTodoAssigneeAsync(TodoItem item, string? value)
+    {
+        if (_list is null || _list.Type != ListType.Todo)
+        {
+            return;
+        }
+
+        var assignee = NormalizeAssignee(value);
+        await AddPersonIfNewAsync(assignee);
+        item.AssigneeName = assignee;
+        await Db.SaveChangesAsync();
+    }
+
     private async Task DeleteTodoAsync(TodoItem item)
     {
         if (_list is null || _list.Type != ListType.Todo)
@@ -587,6 +702,7 @@ else if (_list is not null)
         _activeColumnInput = _activeColumnInput == column ? null : column;
         _newCardTitle = string.Empty;
         _newCardDescription = null;
+        _newCardAssignee = null;
     }
 
     private void ClearColumnInput()
@@ -595,6 +711,7 @@ else if (_list is not null)
         _activeColumnInput = null;
         _newCardTitle = string.Empty;
         _newCardDescription = null;
+        _newCardAssignee = null;
     }
 
     private async Task AddCardToColumnAsync(BoardColumn column)
@@ -618,12 +735,15 @@ else if (_list is not null)
             .DefaultIfEmpty(-1)
             .Max() + 1;
 
+        var assignee = NormalizeAssignee(_newCardAssignee);
+        await AddPersonIfNewAsync(assignee);
         var card = new BoardCard
         {
             ListId = _list.Id,
             Title = title,
             Description = string.IsNullOrWhiteSpace(_newCardDescription) ? null : _newCardDescription.Trim(),
             ProjectName = _activeProject,
+            AssigneeName = assignee,
             Column = column,
             SortOrder = nextOrder
         };
@@ -633,7 +753,9 @@ else if (_list is not null)
         _boardCards.Add(card);
         _newCardTitle = string.Empty;
         _newCardDescription = null;
+        _newCardAssignee = null;
         _activeColumnInput = null;
+        CloseAssigneePicker();
     }
 
     private void StartCardEdit(BoardCard card)
@@ -642,6 +764,7 @@ else if (_list is not null)
         _editingCardId = card.Id;
         _editCardTitle = card.Title;
         _editCardDescription = card.Description;
+        _editCardAssignee = card.AssigneeName;
     }
 
     private void CancelCardEdit()
@@ -650,6 +773,7 @@ else if (_list is not null)
         _editingCardId = null;
         _editCardTitle = string.Empty;
         _editCardDescription = null;
+        _editCardAssignee = null;
     }
 
     private async Task SaveCardEditAsync(BoardCard card)
@@ -666,11 +790,15 @@ else if (_list is not null)
             return;
         }
 
+        var assignee = NormalizeAssignee(_editCardAssignee);
+        await AddPersonIfNewAsync(assignee);
         _editCardErrorMessage = null;
         card.Title = title;
         card.Description = string.IsNullOrWhiteSpace(_editCardDescription) ? null : _editCardDescription.Trim();
+        card.AssigneeName = assignee;
         await Db.SaveChangesAsync();
         CancelCardEdit();
+        CloseAssigneePicker();
     }
 
     private void StartCardDrag(BoardCard card)
@@ -790,14 +918,17 @@ else if (_list is not null)
         await NormalizeCardOrderAsync(card.Column);
     }
 
-    private async Task EnsureProjectSchemaAsync()
+    private async Task EnsureSchemaAsync()
     {
         var connection = Db.Database.GetDbConnection();
         await connection.OpenAsync();
         try
         {
             await EnsureColumnAsync(connection, "TodoItems", "ProjectName");
+            await EnsureColumnAsync(connection, "TodoItems", "AssigneeName");
             await EnsureColumnAsync(connection, "BoardCards", "ProjectName");
+            await EnsureColumnAsync(connection, "BoardCards", "AssigneeName");
+            await EnsureColumnAsync(connection, "Lists", "PeopleJson");
         }
         finally
         {
@@ -865,6 +996,17 @@ else if (_list is not null)
         }
     }
 
+    private Task InitializePeopleAsync()
+    {
+        if (_list is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        _people = ParsePeople(_list.PeopleJson);
+        return Task.CompletedTask;
+    }
+
     private void SetActiveProject(string project)
     {
         if (!string.Equals(_activeProject, project, StringComparison.Ordinal))
@@ -875,7 +1017,47 @@ else if (_list is not null)
             _activeColumnInput = null;
             CancelCardEdit();
             CancelAddProject();
+            CloseAssigneePicker();
         }
+    }
+
+    private bool IsAssigneePickerOpen(string key)
+    {
+        return string.Equals(_activeAssigneePicker, key, StringComparison.Ordinal);
+    }
+
+    private void ToggleAssigneePicker(string key)
+    {
+        _activeAssigneePicker = IsAssigneePickerOpen(key) ? null : key;
+    }
+
+    private void CloseAssigneePicker()
+    {
+        _activeAssigneePicker = null;
+    }
+
+    private void SelectNewTodoAssignee(string person)
+    {
+        _newTodoAssignee = person;
+        CloseAssigneePicker();
+    }
+
+    private async Task SelectTodoAssigneeAsync(TodoItem item, string person)
+    {
+        await SetTodoAssigneeAsync(item, person);
+        CloseAssigneePicker();
+    }
+
+    private void SelectNewCardAssignee(string person)
+    {
+        _newCardAssignee = person;
+        CloseAssigneePicker();
+    }
+
+    private void SelectEditCardAssignee(string person)
+    {
+        _editCardAssignee = person;
+        CloseAssigneePicker();
     }
 
     private void BeginAddProject()
@@ -947,6 +1129,33 @@ else if (_list is not null)
         await Db.SaveChangesAsync();
     }
 
+    private async Task SavePeopleAsync()
+    {
+        if (_list is null)
+        {
+            return;
+        }
+
+        _list.PeopleJson = _people.Count == 0 ? null : JsonSerializer.Serialize(_people);
+        await Db.SaveChangesAsync();
+    }
+
+    private async Task AddPersonIfNewAsync(string? person)
+    {
+        if (_list is null || string.IsNullOrWhiteSpace(person))
+        {
+            return;
+        }
+
+        if (_people.Any(existing => string.Equals(existing, person, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        _people.Add(person);
+        await SavePeopleAsync();
+    }
+
     private bool MatchesActiveProject(string? projectName)
     {
         if (string.IsNullOrWhiteSpace(_activeProject))
@@ -982,6 +1191,32 @@ else if (_list is not null)
         }
 
         return new List<string> { trimmed };
+    }
+
+    private static List<string> ParsePeople(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return new List<string>();
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.StartsWith("[", StringComparison.Ordinal) && trimmed.EndsWith("]", StringComparison.Ordinal))
+        {
+            var parsed = JsonSerializer.Deserialize<List<string>>(trimmed) ?? new List<string>();
+            return parsed
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(p => p.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        return new List<string> { trimmed };
+    }
+
+    private static string? NormalizeAssignee(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private async Task NormalizeCardOrderAsync(BoardColumn column)

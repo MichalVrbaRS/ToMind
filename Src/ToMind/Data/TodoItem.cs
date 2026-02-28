@@ -7,6 +7,7 @@ public sealed class TodoItem
     public MindList List { get; set; } = null!;
     public string Text { get; set; } = string.Empty;
     public string? ProjectName { get; set; }
+    public string? AssigneeName { get; set; }
     public bool IsDone { get; set; }
     public int SortOrder { get; set; }
 }
