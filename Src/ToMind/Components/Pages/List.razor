@@ -74,7 +74,7 @@ else if (_list is not null)
                     <div class="alert alert-danger">@_projectErrorMessage</div>
                 }
                 <div class="d-flex flex-wrap gap-2">
-                    <input class="form-control tm-project-input" placeholder="Project name"
+                    <input class="form-control tm-project-input" placeholder="Project name" @ref="_newProjectInput"
                            @bind="_newProjectName" @bind:event="oninput" @onkeydown="HandleProjectKeyDown" />
                     <button class="btn btn-primary btn-sm" type="button" @onclick="AddProjectAsync">Add</button>
                     <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="CancelAddProject">Cancel</button>
@@ -259,6 +259,8 @@ else if (_list is not null)
     private bool _isAddingProject;
     private string _newProjectName = string.Empty;
     private string? _projectErrorMessage;
+    private ElementReference _newProjectInput;
+    private bool _shouldFocusProjectInput;
     private int? _editingCardId;
     private string _editCardTitle = string.Empty;
     private string? _editCardDescription;
@@ -320,12 +322,12 @@ else if (_list is not null)
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || _list is null)
+        if (_list is null)
         {
             return;
         }
 
-        if (_requiresPassword && !_isAuthorized)
+        if (firstRender && _requiresPassword && !_isAuthorized)
         {
             var token = await LocalStorage.GetRememberMeTokenAsync(_list.Id);
             if (!string.IsNullOrWhiteSpace(token)
@@ -340,9 +342,15 @@ else if (_list is not null)
                 await LocalStorage.ClearRememberMeTokenAsync(_list.Id);
             }
         }
-        else if (_isAuthorized)
+        else if (firstRender && _isAuthorized)
         {
             await LocalStorage.SetLastOpenedListIdAsync(_list.Id);
+        }
+
+        if (_shouldFocusProjectInput)
+        {
+            _shouldFocusProjectInput = false;
+            await _newProjectInput.FocusAsync();
         }
     }
 
@@ -875,6 +883,7 @@ else if (_list is not null)
         _projectErrorMessage = null;
         _isAddingProject = true;
         _newProjectName = string.Empty;
+        _shouldFocusProjectInput = true;
     }
 
     private void CancelAddProject()
@@ -882,6 +891,7 @@ else if (_list is not null)
         _projectErrorMessage = null;
         _isAddingProject = false;
         _newProjectName = string.Empty;
+        _shouldFocusProjectInput = false;
     }
 
     private async Task HandleProjectKeyDown(KeyboardEventArgs args)
