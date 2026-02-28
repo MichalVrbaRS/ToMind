@@ -1,10 +1,25 @@
+using Blazored.LocalStorage;
+using Microsoft.EntityFrameworkCore;
 using ToMind.Components;
+using ToMind.Data;
+using ToMind.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options =>
+    {
+        options.DetailedErrors = builder.Environment.IsDevelopment();
+    });
+builder.Services.AddBlazoredLocalStorage();
+builder.Services.AddScoped<ListLocalStorage>();
+builder.Services.AddSingleton<ListSecurityService>();
+builder.Services.AddScoped<TopBarState>();
+var connectionString = builder.Configuration.GetConnectionString("ToMind")
+    ?? throw new InvalidOperationException("Connection string 'ToMind' not found.");
+builder.Services.AddDbContext<ToMindDbContext>(options =>
+    options.UseSqlite(connectionString));
 
 var app = builder.Build();
 

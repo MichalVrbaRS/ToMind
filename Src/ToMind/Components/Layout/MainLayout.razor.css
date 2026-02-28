@@ -1,79 +1,110 @@
-.page {
-    position: relative;
-    display: flex;
-    flex-direction: column;
+.tm-app {
+    min-height: 100vh;
+    background: var(--tm-bg);
+    color: var(--tm-text);
 }
 
-main {
-    flex: 1;
-}
-
-.sidebar {
-    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
-}
-
-.top-row {
-    background-color: #f7f7f7;
-    border-bottom: 1px solid #d6d5d5;
-    justify-content: flex-end;
-    height: 3.5rem;
+.tm-topbar {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.5rem;
+    background: var(--tm-surface);
+    border-bottom: 1px solid var(--tm-border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
 
-    .top-row ::deep a, .top-row ::deep .btn-link {
-        white-space: nowrap;
-        margin-left: 1.5rem;
-        text-decoration: none;
-    }
-
-    .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
-        text-decoration: underline;
-    }
-
-    .top-row ::deep a:first-child {
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-@media (max-width: 640.98px) {
-    .top-row {
-        justify-content: space-between;
-    }
-
-    .top-row ::deep a, .top-row ::deep .btn-link {
-        margin-left: 0;
-    }
+.tm-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
 }
 
-@media (min-width: 641px) {
-    .page {
-        flex-direction: row;
-    }
+.tm-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+}
 
-    .sidebar {
-        width: 250px;
-        height: 100vh;
-        position: sticky;
-        top: 0;
-    }
+.tm-logo {
+    width: 1.5rem;
+    height: 1.5rem;
+}
 
-    .top-row {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-    }
+.tm-title {
+    font-size: 1.05rem;
+}
 
-    .top-row.auth ::deep a:first-child {
-        flex: 1;
-        text-align: right;
-        width: 0;
-    }
+.tm-topbar-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+}
 
-    .top-row, article {
-        padding-left: 2rem !important;
-        padding-right: 1.5rem !important;
-    }
+.tm-mode-label {
+    font-size: 0.85rem;
+    color: var(--tm-muted);
+    background: var(--tm-surface-alt);
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--tm-border);
+}
+
+.tm-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.tm-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.tm-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background-color: #cbd5f5;
+    transition: 0.2s;
+    border-radius: 999px;
+}
+
+.tm-slider::before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.2s;
+    border-radius: 50%;
+}
+
+.tm-switch input:checked + .tm-slider {
+    background-color: var(--tm-primary);
+}
+
+.tm-switch input:checked + .tm-slider::before {
+    transform: translateX(20px);
+}
+
+.tm-main {
+    display: flex;
+    justify-content: center;
+    padding: 2rem 1rem 3rem;
+}
+
+.tm-content {
+    width: 100%;
+    max-width: 960px;
 }
 
 #blazor-error-ui {
@@ -90,9 +121,9 @@ main {
     z-index: 1000;
 }
 
-    #blazor-error-ui .dismiss {
-        cursor: pointer;
-        position: absolute;
-        right: 0.75rem;
-        top: 0.5rem;
-    }
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}

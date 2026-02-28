@@ -1,0 +1,708 @@
+@page "/{ListId:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using ToMind.Data
+@using ToMind.Services
+@inject ToMindDbContext Db
+@inject ListSecurityService Security
+@inject ListLocalStorage LocalStorage
+@inject NavigationManager Navigation
+@inject IJSRuntime Js
+@inject TopBarState TopBar
+
+<PageTitle>@_pageTitle</PageTitle>
+
+@if (_isLoading)
+{
+    <p>Loading...</p>
+}
+else if (_notFound)
+{
+    <h3>Not Found</h3>
+    <p>Sorry, the list you are looking for does not exist.</p>
+}
+else if (_list is not null)
+{
+    <div class="tm-share-bar">
+        <input class="form-control" value="@_shareUrl" readonly />
+        <button class="btn btn-outline-primary btn-sm" type="button" @onclick="CopyShareAsync">
+            Share
+        </button>
+    </div>
+
+    <div class="tm-card tm-list-header">
+        <div class="tm-list-info">
+            <h1 class="tm-list-title">@_list.Name</h1>
+            @if (!string.IsNullOrWhiteSpace(_list.ProjectName))
+            {
+                <div class="tm-list-meta">Project: @_list.ProjectName</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(_list.Description))
+            {
+                <div class="tm-list-meta">@_list.Description</div>
+            }
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_list.ImagePath))
+        {
+            <img class="tm-list-image" src="@_list.ImagePath" alt="List banner" />
+        }
+    </div>
+
+    @if (_requiresPassword && !_isAuthorized)
+    {
+        <div class="tm-card tm-auth-card">
+            <div class="text-center mb-3">
+                <div class="tm-lock">🔒</div>
+                <h2 class="h5 mb-1">This list is protected</h2>
+                <div class="text-muted">Enter the password to continue.</div>
+            </div>
+                @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                {
+                    <div class="alert alert-danger">@_errorMessage</div>
+                }
+                <EditForm Model="_passwordModel" OnValidSubmit="UnlockAsync" FormName="unlock-list">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+                    <div class="mb-3">
+                        <label class="form-label" for="password">Password</label>
+                        <InputText id="password" type="password" class="form-control" @bind-Value="_passwordModel.Password" />
+                    </div>
+                    <div class="form-check mb-3">
+                        <InputCheckbox id="remember" class="form-check-input" @bind-Value="_passwordModel.RememberMe" />
+                        <label class="form-check-label" for="remember">Remember me</label>
+                    </div>
+                    <button class="btn btn-primary w-100" type="submit">Submit</button>
+                </EditForm>
+        </div>
+    }
+    else
+    {
+        @if (_list.Type == ListType.Todo)
+        {
+            var orderedTodos = GetOrderedTodos();
+            <div class="tm-card">
+                <h2 class="h5">To-do items</h2>
+                    @if (!string.IsNullOrWhiteSpace(_todoErrorMessage))
+                    {
+                        <div class="alert alert-danger">@_todoErrorMessage</div>
+                    }
+                    <div class="input-group mb-3">
+                        <InputText class="form-control" placeholder="Add item" @bind-Value="_newTodoText" />
+                        <button class="btn btn-primary" type="button" @onclick="AddTodoAsync">Add</button>
+                    </div>
+
+                    @if (orderedTodos.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No items yet.</p>
+                    }
+                    else
+                    {
+                        <ul class="list-group" @ondragover:preventDefault @ondrop="DropTodoToEndAsync">
+                            @foreach (var item in orderedTodos)
+                            {
+                                var checkboxId = $"todo-{item.Id}";
+                                var index = orderedTodos.IndexOf(item);
+                                <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2"
+                                    draggable="true"
+                                    @ondragstart="() => StartTodoDrag(item)"
+                                    @ondragend="ClearTodoDrag"
+                                    @ondragover:preventDefault
+                                    @ondrop="() => DropTodoOnItemAsync(item)">
+                                    <div class="form-check">
+                                        <input id="@checkboxId" class="form-check-input" type="checkbox" checked="@item.IsDone"
+                                               @onchange="args => ToggleDoneAsync(item, args)" />
+                                        <label class="form-check-label @(item.IsDone ? "text-decoration-line-through text-muted" : null)" for="@checkboxId">
+                                            @item.Text
+                                        </label>
+                                    </div>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn btn-outline-secondary" type="button" @onclick="() => MoveTodoAsync(item, -1)" disabled="@(index <= 0)">
+                                            Up
+                                        </button>
+                                        <button class="btn btn-outline-secondary" type="button" @onclick="() => MoveTodoAsync(item, 1)" disabled="@(index >= orderedTodos.Count - 1)">
+                                            Down
+                                        </button>
+                                        <button class="btn btn-outline-danger" type="button" @onclick="() => DeleteTodoAsync(item)">
+                                            Delete
+                                        </button>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+            </div>
+        }
+        else
+        {
+            <div class="tm-board">
+                @foreach (var column in _boardColumns)
+                {
+                    var cards = GetOrderedCards(column);
+                    <div class="tm-column" @ondragover:preventDefault @ondrop="() => DropCardToColumnEndAsync(column)">
+                        <div class="tm-column-header">
+                            <span>@GetColumnTitle(column)</span>
+                            <button class="tm-icon-button" type="button" title="Add card" @onclick="() => ToggleColumnInput(column)">
+                                +
+                            </button>
+                        </div>
+                        @if (_activeColumnInput == column)
+                        {
+                            <div class="tm-column-input">
+                                @if (!string.IsNullOrWhiteSpace(_boardErrorMessage))
+                                {
+                                    <div class="alert alert-danger">@_boardErrorMessage</div>
+                                }
+                                <InputText class="form-control" placeholder="Card title" @bind-Value="_newCardTitle" />
+                                <InputTextArea class="form-control" placeholder="Description (optional)" @bind-Value="_newCardDescription" />
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-primary btn-sm" type="button" @onclick="() => AddCardToColumnAsync(column)">Add</button>
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="ClearColumnInput">Cancel</button>
+                                </div>
+                            </div>
+                        }
+                        <div class="tm-column-body" @ondragover:preventDefault @ondrop="() => DropCardToColumnEndAsync(column)">
+                            @if (cards.Count == 0)
+                            {
+                                <div class="text-muted small">No cards.</div>
+                            }
+                            else
+                            {
+                                @foreach (var card in cards)
+                                {
+                                    <div class="tm-card tm-board-card"
+                                         draggable="true"
+                                         @ondragstart="() => StartCardDrag(card)"
+                                         @ondragend="ClearCardDrag"
+                                         @ondragover:preventDefault
+                                         @ondrop="() => DropCardOnCardAsync(card)">
+                                        <div class="d-flex justify-content-between align-items-start gap-2">
+                                            <div>
+                                                <div class="fw-semibold">@card.Title</div>
+                                                @if (!string.IsNullOrWhiteSpace(card.Description))
+                                                {
+                                                    <div class="text-muted small">@card.Description</div>
+                                                }
+                                            </div>
+                                            <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => DeleteCardAsync(card)">
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+}
+
+@code {
+    [Parameter]
+    public Guid ListId { get; set; }
+
+    private MindList? _list;
+    private List<TodoItem> _todoItems = new();
+    private List<BoardCard> _boardCards = new();
+    private readonly BoardColumn[] _boardColumns = Enum.GetValues<BoardColumn>();
+    private bool _isLoading = true;
+    private bool _notFound;
+    private bool _requiresPassword;
+    private bool _isAuthorized;
+    private string _pageTitle = "List";
+    private string? _shareUrl;
+    private string? _errorMessage;
+    private string? _todoErrorMessage;
+    private string _newTodoText = string.Empty;
+    private int? _draggedTodoId;
+    private int? _draggedCardId;
+    private string? _boardErrorMessage;
+    private string _newCardTitle = string.Empty;
+    private string? _newCardDescription;
+    private BoardColumn? _activeColumnInput;
+    private readonly PasswordModel _passwordModel = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Db.Database.EnsureCreatedAsync();
+        _list = await Db.Lists
+            .Include(l => l.TodoItems)
+            .Include(l => l.BoardCards)
+            .FirstOrDefaultAsync(l => l.Id == ListId);
+        if (_list is null)
+        {
+            _notFound = true;
+            _isLoading = false;
+            TopBar.Set("ToMind", false);
+            return;
+        }
+
+        TopBar.Set(_list.Name, true);
+        if (_list.Type == ListType.Todo)
+        {
+            _todoItems = _list.TodoItems
+                .OrderBy(i => i.SortOrder)
+                .ThenBy(i => i.Id)
+                .ToList();
+        }
+        else
+        {
+            _boardCards = _list.BoardCards
+                .OrderBy(c => c.SortOrder)
+                .ThenBy(c => c.Id)
+                .ToList();
+        }
+
+        _pageTitle = _list.Name;
+        _shareUrl = Navigation.ToAbsoluteUri($"/{ListId}").ToString();
+        _requiresPassword = !string.IsNullOrWhiteSpace(_list.PasswordHash);
+        if (!_requiresPassword)
+        {
+            _isAuthorized = true;
+        }
+
+        _isLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _list is null)
+        {
+            return;
+        }
+
+        if (_requiresPassword && !_isAuthorized)
+        {
+            var token = await LocalStorage.GetRememberMeTokenAsync(_list.Id);
+            if (!string.IsNullOrWhiteSpace(token)
+                && Security.VerifyRememberMeToken(_list, _list.RememberMeTokenHash, token))
+            {
+                _isAuthorized = true;
+                await LocalStorage.SetLastOpenedListIdAsync(_list.Id);
+                StateHasChanged();
+            }
+            else if (!string.IsNullOrWhiteSpace(token))
+            {
+                await LocalStorage.ClearRememberMeTokenAsync(_list.Id);
+            }
+        }
+        else if (_isAuthorized)
+        {
+            await LocalStorage.SetLastOpenedListIdAsync(_list.Id);
+        }
+    }
+
+    private async Task CopyShareAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(_shareUrl))
+        {
+            await Js.InvokeVoidAsync("navigator.clipboard.writeText", _shareUrl);
+        }
+    }
+
+    private async Task UnlockAsync()
+    {
+        if (_list is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_passwordModel.Password))
+        {
+            _errorMessage = "Password is required.";
+            return;
+        }
+
+        if (!Security.VerifyPassword(_list, _list.PasswordHash, _passwordModel.Password))
+        {
+            _errorMessage = "Incorrect password.";
+            return;
+        }
+
+        _errorMessage = null;
+        _isAuthorized = true;
+
+        if (_passwordModel.RememberMe)
+        {
+            var token = Security.CreateRememberMeToken(_list);
+            _list.RememberMeTokenHash = token.TokenHash;
+            await Db.SaveChangesAsync();
+            await LocalStorage.SetRememberMeTokenAsync(_list.Id, token.Token);
+        }
+        else
+        {
+            if (!string.IsNullOrWhiteSpace(_list.RememberMeTokenHash))
+            {
+                _list.RememberMeTokenHash = null;
+                await Db.SaveChangesAsync();
+            }
+            await LocalStorage.ClearRememberMeTokenAsync(_list.Id);
+        }
+
+        await LocalStorage.SetLastOpenedListIdAsync(_list.Id);
+    }
+
+    private List<TodoItem> GetOrderedTodos()
+    {
+        return _todoItems
+            .OrderBy(i => i.SortOrder)
+            .ThenBy(i => i.Id)
+            .ToList();
+    }
+
+    private List<BoardCard> GetOrderedCards(BoardColumn column)
+    {
+        return _boardCards
+            .Where(c => c.Column == column)
+            .OrderBy(c => c.SortOrder)
+            .ThenBy(c => c.Id)
+            .ToList();
+    }
+
+    private async Task AddTodoAsync()
+    {
+        if (_list is null || _list.Type != ListType.Todo)
+        {
+            return;
+        }
+
+        var text = _newTodoText.Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            _todoErrorMessage = "Enter a to-do item.";
+            return;
+        }
+
+        _todoErrorMessage = null;
+        var nextOrder = _todoItems.Count == 0 ? 0 : _todoItems.Max(i => i.SortOrder) + 1;
+        var item = new TodoItem
+        {
+            ListId = _list.Id,
+            Text = text,
+            IsDone = false,
+            SortOrder = nextOrder
+        };
+        Db.TodoItems.Add(item);
+        await Db.SaveChangesAsync();
+        _todoItems.Add(item);
+        _newTodoText = string.Empty;
+    }
+
+    private void StartTodoDrag(TodoItem item)
+    {
+        _draggedTodoId = item.Id;
+    }
+
+    private void ClearTodoDrag()
+    {
+        _draggedTodoId = null;
+    }
+
+    private async Task DropTodoOnItemAsync(TodoItem target)
+    {
+        if (_list is null || _list.Type != ListType.Todo || _draggedTodoId is null)
+        {
+            return;
+        }
+
+        var dragged = _todoItems.FirstOrDefault(i => i.Id == _draggedTodoId.Value);
+        if (dragged is null || dragged.Id == target.Id)
+        {
+            return;
+        }
+
+        var ordered = GetOrderedTodos();
+        ordered.Remove(dragged);
+        var targetIndex = ordered.IndexOf(target);
+        if (targetIndex < 0)
+        {
+            targetIndex = ordered.Count;
+        }
+        ordered.Insert(targetIndex, dragged);
+        await NormalizeTodoOrderAsync(ordered);
+        _draggedTodoId = null;
+    }
+
+    private async Task DropTodoToEndAsync()
+    {
+        if (_list is null || _list.Type != ListType.Todo || _draggedTodoId is null)
+        {
+            return;
+        }
+
+        var dragged = _todoItems.FirstOrDefault(i => i.Id == _draggedTodoId.Value);
+        if (dragged is null)
+        {
+            return;
+        }
+
+        var ordered = GetOrderedTodos();
+        ordered.Remove(dragged);
+        ordered.Add(dragged);
+        await NormalizeTodoOrderAsync(ordered);
+        _draggedTodoId = null;
+    }
+
+    private async Task ToggleDoneAsync(TodoItem item, ChangeEventArgs args)
+    {
+        if (_list is null || _list.Type != ListType.Todo)
+        {
+            return;
+        }
+
+        item.IsDone = args.Value switch
+        {
+            bool value => value,
+            string value when bool.TryParse(value, out var parsed) => parsed,
+            _ => item.IsDone
+        };
+
+        await Db.SaveChangesAsync();
+    }
+
+    private async Task DeleteTodoAsync(TodoItem item)
+    {
+        if (_list is null || _list.Type != ListType.Todo)
+        {
+            return;
+        }
+
+        Db.TodoItems.Remove(item);
+        _todoItems.Remove(item);
+        await Db.SaveChangesAsync();
+        await NormalizeTodoOrderAsync();
+    }
+
+    private async Task MoveTodoAsync(TodoItem item, int delta)
+    {
+        if (_list is null || _list.Type != ListType.Todo)
+        {
+            return;
+        }
+
+        var ordered = GetOrderedTodos();
+        var index = ordered.IndexOf(item);
+        var targetIndex = index + delta;
+        if (index < 0 || targetIndex < 0 || targetIndex >= ordered.Count)
+        {
+            return;
+        }
+
+        (ordered[index], ordered[targetIndex]) = (ordered[targetIndex], ordered[index]);
+        await NormalizeTodoOrderAsync(ordered);
+    }
+
+    private async Task NormalizeTodoOrderAsync(List<TodoItem>? ordered = null)
+    {
+        var list = ordered ?? GetOrderedTodos();
+        for (var i = 0; i < list.Count; i++)
+        {
+            list[i].SortOrder = i;
+        }
+
+        await Db.SaveChangesAsync();
+        _todoItems = list;
+    }
+
+    private static string GetColumnTitle(BoardColumn column)
+    {
+        return column switch
+        {
+            BoardColumn.ToDo => "To Do",
+            BoardColumn.InProgress => "In Progress",
+            BoardColumn.Done => "Done",
+            _ => column.ToString()
+        };
+    }
+
+    private void ToggleColumnInput(BoardColumn column)
+    {
+        _boardErrorMessage = null;
+        _activeColumnInput = _activeColumnInput == column ? null : column;
+        _newCardTitle = string.Empty;
+        _newCardDescription = null;
+    }
+
+    private void ClearColumnInput()
+    {
+        _boardErrorMessage = null;
+        _activeColumnInput = null;
+        _newCardTitle = string.Empty;
+        _newCardDescription = null;
+    }
+
+    private async Task AddCardToColumnAsync(BoardColumn column)
+    {
+        if (_list is null || _list.Type != ListType.Board)
+        {
+            return;
+        }
+
+        var title = _newCardTitle.Trim();
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            _boardErrorMessage = "Enter a card title.";
+            return;
+        }
+
+        _boardErrorMessage = null;
+        var nextOrder = _boardCards
+            .Where(c => c.Column == column)
+            .Select(c => c.SortOrder)
+            .DefaultIfEmpty(-1)
+            .Max() + 1;
+
+        var card = new BoardCard
+        {
+            ListId = _list.Id,
+            Title = title,
+            Description = string.IsNullOrWhiteSpace(_newCardDescription) ? null : _newCardDescription.Trim(),
+            Column = column,
+            SortOrder = nextOrder
+        };
+
+        Db.BoardCards.Add(card);
+        await Db.SaveChangesAsync();
+        _boardCards.Add(card);
+        _newCardTitle = string.Empty;
+        _newCardDescription = null;
+        _activeColumnInput = null;
+    }
+
+    private void StartCardDrag(BoardCard card)
+    {
+        _draggedCardId = card.Id;
+    }
+
+    private void ClearCardDrag()
+    {
+        _draggedCardId = null;
+    }
+
+    private async Task DropCardOnCardAsync(BoardCard target)
+    {
+        if (_list is null || _list.Type != ListType.Board || _draggedCardId is null)
+        {
+            return;
+        }
+
+        var dragged = _boardCards.FirstOrDefault(c => c.Id == _draggedCardId.Value);
+        if (dragged is null)
+        {
+            return;
+        }
+
+        var sourceColumn = dragged.Column;
+        var targetColumn = target.Column;
+
+        if (dragged.Id == target.Id && sourceColumn == targetColumn)
+        {
+            return;
+        }
+
+        if (sourceColumn == targetColumn)
+        {
+            var ordered = GetOrderedCards(sourceColumn);
+            ordered.Remove(dragged);
+            var targetIndex = ordered.IndexOf(target);
+            if (targetIndex < 0)
+            {
+                targetIndex = ordered.Count;
+            }
+            ordered.Insert(targetIndex, dragged);
+            UpdateCardSortOrders(ordered);
+        }
+        else
+        {
+            var source = GetOrderedCards(sourceColumn);
+            source.Remove(dragged);
+            var destination = GetOrderedCards(targetColumn);
+            var targetIndex = destination.IndexOf(target);
+            if (targetIndex < 0)
+            {
+                targetIndex = destination.Count;
+            }
+            dragged.Column = targetColumn;
+            destination.Insert(targetIndex, dragged);
+            UpdateCardSortOrders(source);
+            UpdateCardSortOrders(destination);
+        }
+
+        await Db.SaveChangesAsync();
+        _draggedCardId = null;
+    }
+
+    private async Task DropCardToColumnEndAsync(BoardColumn column)
+    {
+        if (_list is null || _list.Type != ListType.Board || _draggedCardId is null)
+        {
+            return;
+        }
+
+        var dragged = _boardCards.FirstOrDefault(c => c.Id == _draggedCardId.Value);
+        if (dragged is null)
+        {
+            return;
+        }
+
+        var sourceColumn = dragged.Column;
+        if (sourceColumn == column)
+        {
+            var ordered = GetOrderedCards(column);
+            ordered.Remove(dragged);
+            ordered.Add(dragged);
+            UpdateCardSortOrders(ordered);
+        }
+        else
+        {
+            var source = GetOrderedCards(sourceColumn);
+            source.Remove(dragged);
+            var destination = GetOrderedCards(column);
+            dragged.Column = column;
+            destination.Add(dragged);
+            UpdateCardSortOrders(source);
+            UpdateCardSortOrders(destination);
+        }
+
+        await Db.SaveChangesAsync();
+        _draggedCardId = null;
+    }
+
+    private async Task DeleteCardAsync(BoardCard card)
+    {
+        if (_list is null || _list.Type != ListType.Board)
+        {
+            return;
+        }
+
+        Db.BoardCards.Remove(card);
+        _boardCards.Remove(card);
+        await Db.SaveChangesAsync();
+        await NormalizeCardOrderAsync(card.Column);
+    }
+
+    private async Task NormalizeCardOrderAsync(BoardColumn column)
+    {
+        var cards = GetOrderedCards(column);
+        UpdateCardSortOrders(cards);
+        await Db.SaveChangesAsync();
+    }
+
+    private static void UpdateCardSortOrders(IReadOnlyList<BoardCard> cards)
+    {
+        for (var i = 0; i < cards.Count; i++)
+        {
+            cards[i].SortOrder = i;
+        }
+    }
+
+    private sealed class PasswordModel
+    {
+        [Required]
+        public string Password { get; set; } = string.Empty;
+
+        public bool RememberMe { get; set; }
+    }
+}

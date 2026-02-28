@@ -1,16 +1,35 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject IJSRuntime Js
+@inject NavigationManager Navigation
+@inject ListLocalStorage LocalStorage
+@inject TopBarState TopBar
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+<div class="tm-app">
+    <header class="tm-topbar">
+        <div class="tm-topbar-left">
+            <div class="tm-brand">
+                <img class="tm-logo" src="images/app-icon.png" alt="ToMind" />
+                <span class="tm-title">@TopBar.Title</span>
+            </div>
+            @if (TopBar.ShowCreateButton)
+            {
+                <button class="btn btn-primary btn-sm" type="button" @onclick="CreateNewList">
+                    Create New
+                </button>
+            }
         </div>
+        <div class="tm-topbar-actions">
+            <span class="tm-mode-label">@(_currentTheme == "dark" ? "Dark Mode" : "Light Mode")</span>
+            <label class="tm-switch">
+                <input type="checkbox" checked="@(_currentTheme == "dark")" @onchange="ToggleThemeAsync" />
+                <span class="tm-slider"></span>
+            </label>
+        </div>
+    </header>
 
-        <article class="content px-4">
+    <main class="tm-main">
+        <article class="tm-content">
             @Body
         </article>
     </main>
@@ -21,3 +40,33 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private string _currentTheme = "light";
+
+    protected override void OnInitialized()
+    {
+        TopBar.Changed += OnTopBarChanged;
+    }
+
+    private async Task ToggleThemeAsync()
+    {
+        _currentTheme = await Js.InvokeAsync<string>("ToMindTheme.toggleTheme");
+    }
+
+    private async Task CreateNewList()
+    {
+        await LocalStorage.ClearLastOpenedListIdAsync();
+        Navigation.NavigateTo("/?new=1");
+    }
+
+    private void OnTopBarChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        TopBar.Changed -= OnTopBarChanged;
+    }
+}
