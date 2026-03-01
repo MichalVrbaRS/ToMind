@@ -32,6 +32,14 @@
                     </svg>
                 </button>
             }
+            @if (_currentTheme == "light")
+            {
+                <button class="tm-theme-cycle" type="button" title="Change light theme" @onclick="CycleLightThemeAsync">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 4V1L8 5l4 4V6a6 6 0 1 1-5.65 4H4.26A8 8 0 1 0 12 4Z"/>
+                    </svg>
+                </button>
+            }
             <span class="tm-mode-label">@(_currentTheme == "dark" ? "Dark Mode" : "Light Mode")</span>
             <label class="tm-switch">
                 <input type="checkbox" checked="@(_currentTheme == "dark")" @onchange="ToggleThemeAsync" />
@@ -83,6 +91,11 @@
         {
             await Js.InvokeVoidAsync("navigator.clipboard.writeText", TopBar.ShareUrl);
         }
+    }
+
+    private async Task CycleLightThemeAsync()
+    {
+        await Js.InvokeAsync<string>("ToMindTheme.cycleLightTheme");
     }
 
     private async Task CreateNewList()

@@ -131,6 +131,28 @@
     background: var(--tm-surface-alt);
 }
 
+.tm-theme-cycle {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid var(--tm-border);
+    background: var(--tm-surface);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--tm-primary);
+}
+
+.tm-theme-cycle svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+.tm-theme-cycle:hover {
+    background: var(--tm-surface-alt);
+}
+
 .tm-share-button:active {
     transform: scale(0.98);
 }
