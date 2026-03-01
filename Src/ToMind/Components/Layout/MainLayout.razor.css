@@ -25,9 +25,11 @@
 }
 
 .tm-logo {
-    width: 2.25rem;
-    height: 2.25rem;
+    height: 1.35rem;
+    width: auto;
 }
+
+
 
 .tm-topbar-center {
     text-align: center;
@@ -154,11 +156,6 @@
 
     .tm-mode-label {
         display: none;
-    }
-
-    .tm-logo {
-        width: 1.9rem;
-        height: 1.9rem;
     }
 
     .tm-topbar-title {

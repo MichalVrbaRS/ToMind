@@ -1,11 +1,11 @@
 :root {
     color-scheme: light;
-    --tm-bg: #f2f4fb;
+    --tm-bg: #e9edf5;
     --tm-text: #1f2937;
-    --tm-surface: #ffffff;
-    --tm-surface-alt: #f7f8fc;
-    --tm-border: #e1e6f0;
-    --tm-muted: #6b7280;
+    --tm-surface: #f7f8fb;
+    --tm-surface-alt: #eef2f7;
+    --tm-border: #d3d9e6;
+    --tm-muted: #5b6472;
     --tm-link: #2f6fdc;
     --tm-primary: #2f6fdc;
     --tm-primary-border: #2b62c5;
@@ -129,8 +129,8 @@ h1:focus {
 }
 
 .tm-prep-logo {
-    width: 4.5rem;
-    height: 4.5rem;
+    height: 2.7rem;
+    width: auto;
 }
 
 .tm-prep-actions {
