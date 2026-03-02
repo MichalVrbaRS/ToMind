@@ -22,4 +22,4 @@ dotnet run --project Src\ToMind\ToMind.csproj
 The SQLite database is stored at `Src\ToMind\App_Data\ToMind.db`.
 
 ## Admin access
-Open `/admin` and use password: `todoadmin!1`
+Open `/admin` and use password
