@@ -111,6 +111,14 @@ else
             <h1 class="h4 mb-0">All Lists</h1>
             <span class="text-muted">@_lists.Count list(s)</span>
         </div>
+        @if (!string.IsNullOrWhiteSpace(_listEditErrorMessage))
+        {
+            <div class="alert alert-danger">@_listEditErrorMessage</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(_listEditSuccessMessage))
+        {
+            <div class="alert alert-success">@_listEditSuccessMessage</div>
+        }
 
         @if (_lists.Count == 0)
         {
@@ -123,12 +131,45 @@ else
                 {
                     <div class="tm-admin-row">
                         <div>
-                            <div class="fw-semibold">@list.Name</div>
-                            <div class="tm-list-meta">
-                                @GetListTypeName(list.Type) · Created @FormatDate(list.CreatedAtUtc)
-                            </div>
+                            @if (_editingListId == list.Id)
+                            {
+                                <div class="mb-2">
+                                    <InputText class="form-control" placeholder="List name" @bind-Value="_editListName" />
+                                </div>
+                                <div class="mb-2">
+                                    <InputTextArea class="form-control" placeholder="Description (optional)" @bind-Value="_editListDescription" />
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-primary btn-sm" type="button" @onclick="() => SaveListEditAsync(list)">Save</button>
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="CancelListEdit">Cancel</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="fw-semibold">@list.Name</div>
+                                @if (!string.IsNullOrWhiteSpace(list.Description))
+                                {
+                                    <div class="text-muted small">@list.Description</div>
+                                }
+                                <div class="tm-list-meta">
+                                    @GetListTypeName(list.Type) · Created @FormatDate(list.CreatedAtUtc)
+                                </div>
+                            }
                         </div>
                         <div class="tm-admin-actions">
+                            @if (_editingListId != list.Id)
+                            {
+                                <button class="tm-icon-button tm-admin-action" type="button" title="Open list" @onclick="() => OpenList(list)">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3ZM5 5h6v2H7v10h10v-4h2v6H5V5Z"/>
+                                    </svg>
+                                </button>
+                                <button class="tm-icon-button tm-admin-action" type="button" title="Edit list" @onclick="() => StartListEdit(list)">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm18.71-11.04a1.003 1.003 0 0 0 0-1.42l-2.5-2.5a1.003 1.003 0 0 0-1.42 0L15.13 3.9l3.75 3.75 2.83-2.83Z"/>
+                                    </svg>
+                                </button>
+                            }
                             <button class="tm-icon-button tm-admin-action" type="button" title="Copy link" @onclick="() => CopyLinkAsync(list)">
                                 <svg viewBox="0 0 24 24" aria-hidden="true">
                                     <path d="M7.5 7A3.5 3.5 0 0 1 11 3.5h5A3.5 3.5 0 0 1 19.5 7v5A3.5 3.5 0 0 1 16 15.5h-5A3.5 3.5 0 0 1 7.5 12v-5Zm-3 5A3.5 3.5 0 0 1 8 8.5h.5V12A2.5 2.5 0 0 0 11 14.5h5v.5A3.5 3.5 0 0 1 12.5 18.5h-5A3.5 3.5 0 0 1 4 15v-3Z"/>
@@ -162,6 +203,11 @@ else
     private string? _importExistingListInput;
     private string? _importErrorMessage;
     private string? _importSuccessMessage;
+    private Guid? _editingListId;
+    private string _editListName = string.Empty;
+    private string? _editListDescription;
+    private string? _listEditErrorMessage;
+    private string? _listEditSuccessMessage;
 
     protected override void OnInitialized()
     {
@@ -201,6 +247,11 @@ else
         await Js.InvokeVoidAsync("navigator.clipboard.writeText", url);
     }
 
+    private void OpenList(MindList list)
+    {
+        Navigation.NavigateTo($"/{list.Id}");
+    }
+
     private async Task DeleteListAsync(MindList list)
     {
         var confirmed = await Js.InvokeAsync<bool>("confirm", $"Delete '{list.Name}'?");
@@ -216,6 +267,48 @@ else
         Db.Lists.Remove(list);
         await Db.SaveChangesAsync();
         _lists.Remove(list);
+    }
+
+    private void StartListEdit(MindList list)
+    {
+        _listEditErrorMessage = null;
+        _listEditSuccessMessage = null;
+        _editingListId = list.Id;
+        _editListName = list.Name;
+        _editListDescription = list.Description;
+    }
+
+    private void CancelListEdit()
+    {
+        _listEditErrorMessage = null;
+        _editingListId = null;
+        _editListName = string.Empty;
+        _editListDescription = null;
+    }
+
+    private async Task SaveListEditAsync(MindList list)
+    {
+        if (_editingListId != list.Id)
+        {
+            return;
+        }
+
+        var name = _editListName.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            _listEditErrorMessage = "Enter a list name.";
+            return;
+        }
+
+        _listEditErrorMessage = null;
+        list.Name = name;
+        list.Description = string.IsNullOrWhiteSpace(_editListDescription) ? null : _editListDescription.Trim();
+        list.UpdatedAtUtc = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+        _listEditSuccessMessage = $"Updated '{list.Name}'.";
+        _editingListId = null;
+        _editListName = string.Empty;
+        _editListDescription = null;
     }
 
     private static string GetListTypeName(ListType type)

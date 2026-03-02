@@ -8,7 +8,9 @@
 <div class="tm-app">
     <header class="tm-topbar">
         <div class="tm-topbar-left">
-            <img class="tm-logo" src="images/app-icon.png" alt="ToMind" />
+            <a class="tm-logo-link" href="/">
+                <img class="tm-logo" src="images/app-icon.png" alt="ToMind" />
+            </a>
             @if (TopBar.ShowCreateButton)
             {
                 <button class="btn btn-primary btn-sm" type="button" @onclick="CreateNewList">
