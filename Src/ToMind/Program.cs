@@ -1,11 +1,13 @@
 using Blazored.LocalStorage;
 using Microsoft.EntityFrameworkCore;
+using System.Xml.Linq;
 using ToMind.Components;
 using ToMind.Data;
 using ToMind.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddXmlFile("web.config", optional: true, reloadOnChange: true);
+AddWebConfigAppSettings(builder.Configuration, builder.Environment.ContentRootPath);
 builder.Configuration.AddEnvironmentVariables();
 
 // Add services to the container.
@@ -42,3 +44,36 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+static void AddWebConfigAppSettings(IConfigurationBuilder configuration, string contentRoot)
+{
+    var webConfigPath = Path.Combine(contentRoot, "web.config");
+    if (!File.Exists(webConfigPath))
+    {
+        return;
+    }
+
+    var document = XDocument.Load(webConfigPath);
+    var appSettings = document.Root?.Element("appSettings");
+    if (appSettings is null)
+    {
+        return;
+    }
+
+    var settings = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+    foreach (var entry in appSettings.Elements("add"))
+    {
+        var key = entry.Attribute("key")?.Value;
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            continue;
+        }
+
+        settings[key] = entry.Attribute("value")?.Value;
+    }
+
+    if (settings.Count > 0)
+    {
+        configuration.AddInMemoryCollection(settings);
+    }
+}
