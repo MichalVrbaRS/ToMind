@@ -166,7 +166,9 @@ else
     protected override void OnInitialized()
     {
         _adminPassword = Configuration["ToMind:AdminPassword"]
+            ?? Configuration["appSettings:ToMind:AdminPassword"]
             ?? Configuration["AdminPassword"]
+            ?? Configuration["appSettings:AdminPassword"]
             ?? DefaultAdminPassword;
         TopBar.Set("Admin", false, false);
     }

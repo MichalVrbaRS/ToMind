@@ -5,6 +5,8 @@ using ToMind.Data;
 using ToMind.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddXmlFile("web.config", optional: true, reloadOnChange: true);
+builder.Configuration.AddEnvironmentVariables();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
