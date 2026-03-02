@@ -239,6 +239,38 @@ h1:focus {
     margin-top: 1rem;
 }
 
+.tm-prep-open {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.tm-prep-countdown {
+    font-size: 0.75rem;
+    color: var(--tm-muted);
+}
+
+.tm-prep-recent {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tm-prep-recent-title {
+    font-size: 0.85rem;
+    color: var(--tm-muted);
+}
+
+.tm-prep-recent-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
 .tm-card {
     background: var(--tm-surface);
     border: 1px solid var(--tm-border);

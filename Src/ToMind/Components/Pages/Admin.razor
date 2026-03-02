@@ -74,7 +74,9 @@ else
                 <input class="form-control" list="tm-kanban-lists" placeholder="Start typing list name or paste ID"
                        @bind="_importExistingListInput" @bind:event="oninput" />
                 <datalist id="tm-kanban-lists">
-                    @foreach (var list in _lists.Where(l => l.Type == ListType.Board).OrderBy(l => l.Name))
+                    @foreach (var list in _lists.Where(l => l.Type == ListType.Board)
+                        .OrderByDescending(l => l.UpdatedAtUtc)
+                        .ThenBy(l => l.Name))
                     {
                         <option value="@list.Id" label="@list.Name"></option>
                     }
@@ -237,7 +239,8 @@ else
         await Db.Database.EnsureCreatedAsync();
         await EnsurePeopleSchemaAsync();
         _lists = await Db.Lists
-            .OrderByDescending(l => l.CreatedAtUtc)
+            .OrderByDescending(l => l.UpdatedAtUtc)
+            .ThenByDescending(l => l.CreatedAtUtc)
             .ToListAsync();
     }
 
@@ -309,6 +312,7 @@ else
         _editingListId = null;
         _editListName = string.Empty;
         _editListDescription = null;
+        await LoadListsAsync();
     }
 
     private static string GetListTypeName(ListType type)

@@ -32,11 +32,35 @@
                     </button>
                     @if (_lastOpenedId is not null && !string.IsNullOrWhiteSpace(_lastOpenedName))
                     {
-                        <button class="btn btn-primary" type="button" @onclick="OpenLastList">
-                            Open @_lastOpenedName
-                        </button>
+                        <div class="tm-prep-open">
+                            <button class="btn btn-primary" type="button" @onclick="OpenLastList">
+                                Open @_lastOpenedName
+                            </button>
+                            @if (!_skipAutoNav && _autoOpenSecondsLeft > 0)
+                            {
+                                <span class="tm-prep-countdown">Opening in @_autoOpenSecondsLeft s</span>
+                            }
+                        </div>
                     }
                 </div>
+                @if (HasOtherRecentLists())
+                {
+                    <div class="tm-prep-recent">
+                        <div class="tm-prep-recent-title">Recent lists</div>
+                        <div class="tm-prep-recent-list">
+                            @foreach (var list in _recentLists)
+                            {
+                                if (_lastOpenedId is not null && list.Id == _lastOpenedId)
+                                {
+                                    continue;
+                                }
+                                <button class="btn btn-outline-primary btn-sm" type="button" @onclick="() => OpenRecentList(list.Id)">
+                                    @list.Name
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
             </div>
         }
         else
@@ -153,6 +177,7 @@
 
 @code {
     private const long MaxImageBytes = 5 * 1024 * 1024;
+    private const int AutoOpenDelaySeconds = 5;
     private readonly CreateListModel _model = new();
     private IBrowserFile? _imageFile;
     private string? _imageName;
@@ -162,6 +187,8 @@
     private Guid? _lastOpenedId;
     private string? _lastOpenedName;
     private bool _skipAutoNav;
+    private int _autoOpenSecondsLeft;
+    private List<MindList> _recentLists = new();
     private string _projectInput = string.Empty;
     private bool _suppressSubmit;
     private string _personInput = string.Empty;
@@ -184,25 +211,64 @@
 
         await Db.Database.EnsureCreatedAsync();
         await EnsurePeopleSchemaAsync();
-        var lastOpened = await LocalStorage.GetLastOpenedListIdAsync();
-        if (lastOpened is not null)
+        var recentIds = (await LocalStorage.GetRecentOpenedListIdsAsync()).ToList();
+        if (recentIds.Count == 0)
         {
-            var list = await Db.Lists.AsNoTracking().FirstOrDefaultAsync(l => l.Id == lastOpened);
-            if (list is not null)
+            var legacyLastOpened = await LocalStorage.GetLastOpenedListIdAsync();
+            if (legacyLastOpened is not null)
             {
-                _lastOpenedId = list.Id;
-                _lastOpenedName = list.Name;
-            }
-            else
-            {
-                await LocalStorage.ClearLastOpenedListIdAsync();
+                await LocalStorage.SetLastOpenedListIdAsync(legacyLastOpened.Value);
+                recentIds = (await LocalStorage.GetRecentOpenedListIdsAsync()).ToList();
             }
         }
 
-        StateHasChanged();
-        if (!forceNew)
+        _recentLists = new List<MindList>();
+        if (recentIds.Count > 0)
         {
-            await Task.Delay(5000);
+            var recentLists = await Db.Lists.AsNoTracking()
+                .Where(l => recentIds.Contains(l.Id))
+                .ToListAsync();
+            var lookup = recentLists.ToDictionary(l => l.Id);
+            foreach (var id in recentIds)
+            {
+                if (lookup.TryGetValue(id, out var list))
+                {
+                    _recentLists.Add(list);
+                }
+            }
+        }
+
+        if (_recentLists.Count > 0)
+        {
+            _lastOpenedId = _recentLists[0].Id;
+            _lastOpenedName = _recentLists[0].Name;
+        }
+        else
+        {
+            _lastOpenedId = null;
+            _lastOpenedName = null;
+        }
+
+        _autoOpenSecondsLeft = (!forceNew && _lastOpenedId is not null) ? AutoOpenDelaySeconds : 0;
+
+        StateHasChanged();
+        if (forceNew || _lastOpenedId is null)
+        {
+            _isPreparing = false;
+            StateHasChanged();
+            return;
+        }
+
+        for (var remaining = AutoOpenDelaySeconds; remaining > 0; remaining--)
+        {
+            if (_skipAutoNav)
+            {
+                return;
+            }
+
+            _autoOpenSecondsLeft = remaining;
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(1000);
         }
 
         if (_skipAutoNav)
@@ -210,19 +276,29 @@
             return;
         }
 
-        if (!forceNew && _lastOpenedId is not null)
+        Navigation.NavigateTo($"/{_lastOpenedId}");
+        return;
+    }
+
+    private bool HasOtherRecentLists()
+    {
+        if (_recentLists.Count == 0)
         {
-            Navigation.NavigateTo($"/{_lastOpenedId}");
-            return;
+            return false;
         }
 
-        _isPreparing = false;
-        StateHasChanged();
+        if (_lastOpenedId is null)
+        {
+            return true;
+        }
+
+        return _recentLists.Any(list => list.Id != _lastOpenedId.Value);
     }
 
     private void SkipToCreate()
     {
         _skipAutoNav = true;
+        _autoOpenSecondsLeft = 0;
         _isPreparing = false;
         StateHasChanged();
     }
@@ -235,7 +311,15 @@
         }
 
         _skipAutoNav = true;
+        _autoOpenSecondsLeft = 0;
         Navigation.NavigateTo($"/{_lastOpenedId}");
+    }
+
+    private void OpenRecentList(Guid listId)
+    {
+        _skipAutoNav = true;
+        _autoOpenSecondsLeft = 0;
+        Navigation.NavigateTo($"/{listId}");
     }
 
     private void OnImageSelected(InputFileChangeEventArgs args)

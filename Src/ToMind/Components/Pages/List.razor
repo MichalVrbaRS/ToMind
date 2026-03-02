@@ -357,6 +357,7 @@ else if (_list is not null)
     private string? _editCardAssignee;
     private string? _editCardErrorMessage;
     private readonly PasswordModel _passwordModel = new();
+    private bool _activityStamped;
 
     protected override async Task OnInitializedAsync()
     {
@@ -427,6 +428,7 @@ else if (_list is not null)
             {
                 _isAuthorized = true;
                 await LocalStorage.SetLastOpenedListIdAsync(_list.Id);
+                await StampListActivityAsync();
                 StateHasChanged();
             }
             else if (!string.IsNullOrWhiteSpace(token))
@@ -437,6 +439,7 @@ else if (_list is not null)
         else if (firstRender && _isAuthorized)
         {
             await LocalStorage.SetLastOpenedListIdAsync(_list.Id);
+            await StampListActivityAsync();
         }
 
         if (_shouldFocusProjectInput)
@@ -486,6 +489,19 @@ else if (_list is not null)
         }
 
         await LocalStorage.SetLastOpenedListIdAsync(_list.Id);
+        await StampListActivityAsync();
+    }
+
+    private async Task StampListActivityAsync()
+    {
+        if (_list is null || _activityStamped)
+        {
+            return;
+        }
+
+        _list.UpdatedAtUtc = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+        _activityStamped = true;
     }
 
     private List<TodoItem> GetOrderedTodos()
