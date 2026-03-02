@@ -363,3 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 /Src/ToMind/App_Data/ToMind.db-shm
 /Src/ToMind/App_Data/ToMind.db-wal
+/Src/ToMind/App_Data
