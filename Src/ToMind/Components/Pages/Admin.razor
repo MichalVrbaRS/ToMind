@@ -9,6 +9,7 @@
 @inject TopBarState TopBar
 @inject IJSRuntime Js
 @inject NavigationManager Navigation
+@inject IConfiguration Configuration
 
 <PageTitle>Admin</PageTitle>
 
@@ -147,11 +148,12 @@ else
 }
 
 @code {
-    private const string AdminPassword = "todoadmin!1";
+    private const string DefaultAdminPassword = "todoadmin!1";
     private readonly PasswordModel _passwordModel = new();
     private bool _isAuthorized;
     private string? _errorMessage;
     private List<MindList> _lists = new();
+    private string? _adminPassword;
     private ListType _importType = ListType.Todo;
     private bool _importIntoExisting;
     private string _importText = string.Empty;
@@ -163,12 +165,15 @@ else
 
     protected override void OnInitialized()
     {
+        _adminPassword = Configuration["ToMind:AdminPassword"]
+            ?? Configuration["AdminPassword"]
+            ?? DefaultAdminPassword;
         TopBar.Set("Admin", false, false);
     }
 
     private async Task UnlockAsync()
     {
-        if (!string.Equals(_passwordModel.Password, AdminPassword, StringComparison.Ordinal))
+        if (!string.Equals(_passwordModel.Password, _adminPassword, StringComparison.Ordinal))
         {
             _errorMessage = "Incorrect password.";
             return;
