@@ -35,6 +35,76 @@
 }
 else
 {
+    <div class="tm-card tm-admin-import">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="h4 mb-0">Import</h1>
+        </div>
+        <div class="tm-import-help text-muted small mb-3">
+            <div><strong>Todo:</strong> one line = one item.</div>
+            <div><strong>Kanban:</strong> one line = one card, use <code>$$$</code> to split title and description (optional).</div>
+            <div><strong>Existing Kanban:</strong> choose a list and provide a project name to add cards as a new project.</div>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_importErrorMessage))
+        {
+            <div class="alert alert-danger">@_importErrorMessage</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(_importSuccessMessage))
+        {
+            <div class="alert alert-success">@_importSuccessMessage</div>
+        }
+        <div class="mb-3">
+            <label class="form-label">Type</label>
+            <InputSelect class="form-select" @bind-Value="_importType">
+                <option value="@ListType.Todo">Todo List</option>
+                <option value="@ListType.Board">Kanban Board</option>
+            </InputSelect>
+        </div>
+        @if (_importType == ListType.Board)
+        {
+            <div class="form-check mb-3">
+                <InputCheckbox class="form-check-input" @bind-Value="_importIntoExisting" />
+                <span class="form-check-label">Import into existing Kanban list</span>
+            </div>
+        }
+        @if (_importType == ListType.Board && _importIntoExisting)
+        {
+            <div class="mb-3">
+                <label class="form-label">Existing Kanban list</label>
+                <input class="form-control" list="tm-kanban-lists" placeholder="Start typing list name or paste ID"
+                       @bind="_importExistingListInput" @bind:event="oninput" />
+                <datalist id="tm-kanban-lists">
+                    @foreach (var list in _lists.Where(l => l.Type == ListType.Board).OrderBy(l => l.Name))
+                    {
+                        <option value="@list.Id" label="@list.Name"></option>
+                    }
+                </datalist>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Project name</label>
+                <input class="form-control" placeholder="Required for existing list" @bind="_importProjectName" />
+            </div>
+        }
+        else
+        {
+            <div class="mb-3">
+                <label class="form-label">New list name</label>
+                <input class="form-control" placeholder="List name" @bind="_importListName" />
+            </div>
+            @if (_importType == ListType.Board)
+            {
+                <div class="mb-3">
+                    <label class="form-label">Project name (optional)</label>
+                    <input class="form-control" placeholder="Optional project name" @bind="_importProjectName" />
+                </div>
+            }
+        }
+        <div class="mb-3">
+            <label class="form-label">Items</label>
+            <InputTextArea class="form-control tm-import-text" @bind-Value="_importText" />
+        </div>
+        <button class="btn btn-primary" type="button" @onclick="ImportAsync">Import</button>
+    </div>
+
     <div class="tm-card">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h1 class="h4 mb-0">All Lists</h1>
@@ -82,6 +152,14 @@ else
     private bool _isAuthorized;
     private string? _errorMessage;
     private List<MindList> _lists = new();
+    private ListType _importType = ListType.Todo;
+    private bool _importIntoExisting;
+    private string _importText = string.Empty;
+    private string? _importListName;
+    private string? _importProjectName;
+    private string? _importExistingListInput;
+    private string? _importErrorMessage;
+    private string? _importSuccessMessage;
 
     protected override void OnInitialized()
     {
@@ -143,6 +221,198 @@ else
         return utc.ToLocalTime().ToString("g");
     }
 
+    private async Task ImportAsync()
+    {
+        _importErrorMessage = null;
+        _importSuccessMessage = null;
+        var lines = (_importText ?? string.Empty)
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .ToList();
+
+        if (lines.Count == 0)
+        {
+            _importErrorMessage = "Enter at least one line to import.";
+            return;
+        }
+
+        await EnsureImportSchemaAsync();
+
+        if (_importType == ListType.Todo)
+        {
+            if (string.IsNullOrWhiteSpace(_importListName))
+            {
+                _importErrorMessage = "Enter a name for the new list.";
+                return;
+            }
+
+            var list = new MindList
+            {
+                Id = Guid.NewGuid(),
+                Name = _importListName.Trim(),
+                Type = ListType.Todo,
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+
+            Db.Lists.Add(list);
+            var order = 0;
+            var added = 0;
+            foreach (var line in lines)
+            {
+                Db.TodoItems.Add(new TodoItem
+                {
+                    ListId = list.Id,
+                    Text = line,
+                    SortOrder = order++
+                });
+                added++;
+            }
+
+            await Db.SaveChangesAsync();
+            await LoadListsAsync();
+            _importSuccessMessage = $"Imported {added} todo item(s) into '{list.Name}'.";
+        }
+        else
+        {
+            MindList? list = null;
+            string? projectName = null;
+
+            if (_importIntoExisting)
+            {
+                list = ResolveExistingBoardList();
+                if (list is null)
+                {
+                    _importErrorMessage = "Select an existing Kanban list.";
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(_importProjectName))
+                {
+                    _importErrorMessage = "Enter a project name for the existing list.";
+                    return;
+                }
+
+                projectName = _importProjectName.Trim();
+                list.ProjectName = UpsertProject(list.ProjectName, projectName);
+                list.UpdatedAtUtc = DateTime.UtcNow;
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(_importListName))
+                {
+                    _importErrorMessage = "Enter a name for the new list.";
+                    return;
+                }
+
+                projectName = string.IsNullOrWhiteSpace(_importProjectName) ? null : _importProjectName.Trim();
+                list = new MindList
+                {
+                    Id = Guid.NewGuid(),
+                    Name = _importListName.Trim(),
+                    Type = ListType.Board,
+                    ProjectName = string.IsNullOrWhiteSpace(projectName) ? null : UpsertProject(null, projectName),
+                    CreatedAtUtc = DateTime.UtcNow,
+                    UpdatedAtUtc = DateTime.UtcNow
+                };
+                Db.Lists.Add(list);
+            }
+
+            var order = 0;
+            var added = 0;
+            foreach (var line in lines)
+            {
+                var (title, description) = ParseKanbanLine(line);
+                if (string.IsNullOrWhiteSpace(title))
+                {
+                    continue;
+                }
+
+                Db.BoardCards.Add(new BoardCard
+                {
+                    ListId = list.Id,
+                    Title = title,
+                    Description = description,
+                    Column = BoardColumn.ToDo,
+                    SortOrder = order++,
+                    ProjectName = projectName
+                });
+                added++;
+            }
+
+            await Db.SaveChangesAsync();
+            await LoadListsAsync();
+            _importSuccessMessage = $"Imported {added} kanban card(s) into '{list.Name}'.";
+        }
+
+        _importText = string.Empty;
+        _importListName = null;
+        _importProjectName = null;
+        _importExistingListInput = null;
+    }
+
+    private MindList? ResolveExistingBoardList()
+    {
+        if (string.IsNullOrWhiteSpace(_importExistingListInput))
+        {
+            return null;
+        }
+
+        var input = _importExistingListInput.Trim();
+        if (Guid.TryParse(input, out var id))
+        {
+            return _lists.FirstOrDefault(l => l.Type == ListType.Board && l.Id == id);
+        }
+
+        return _lists.FirstOrDefault(l => l.Type == ListType.Board
+            && string.Equals(l.Name, input, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static (string title, string? description) ParseKanbanLine(string line)
+    {
+        var index = line.IndexOf("$$$", StringComparison.Ordinal);
+        if (index < 0)
+        {
+            return (line.Trim(), null);
+        }
+
+        var title = line[..index].Trim();
+        var description = line[(index + 3)..].Trim();
+        return (title, string.IsNullOrWhiteSpace(description) ? null : description);
+    }
+
+    private static string? UpsertProject(string? current, string project)
+    {
+        var list = ParseProjects(current);
+        if (!list.Any(p => string.Equals(p, project, StringComparison.OrdinalIgnoreCase)))
+        {
+            list.Add(project);
+        }
+        return list.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(list);
+    }
+
+    private static List<string> ParseProjects(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return new List<string>();
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.StartsWith("[", StringComparison.Ordinal) && trimmed.EndsWith("]", StringComparison.Ordinal))
+        {
+            var parsed = System.Text.Json.JsonSerializer.Deserialize<List<string>>(trimmed) ?? new List<string>();
+            return parsed
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(p => p.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        return new List<string> { trimmed };
+    }
+
     private async Task EnsurePeopleSchemaAsync()
     {
         var connection = Db.Database.GetDbConnection();
@@ -150,6 +420,22 @@ else
         try
         {
             await EnsureColumnAsync(connection, "Lists", "PeopleJson");
+        }
+        finally
+        {
+            await connection.CloseAsync();
+        }
+    }
+
+    private async Task EnsureImportSchemaAsync()
+    {
+        var connection = Db.Database.GetDbConnection();
+        await connection.OpenAsync();
+        try
+        {
+            await EnsureColumnAsync(connection, "TodoItems", "ProjectName");
+            await EnsureColumnAsync(connection, "BoardCards", "ProjectName");
+            await EnsureColumnAsync(connection, "Lists", "ProjectName");
         }
         finally
         {

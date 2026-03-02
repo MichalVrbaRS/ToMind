@@ -634,6 +634,18 @@ h1:focus {
     gap: 0.75rem;
 }
 
+.tm-admin-import .tm-import-text {
+    min-height: 200px;
+    resize: vertical;
+}
+
+.tm-import-help code {
+    background: var(--tm-surface-alt);
+    padding: 0.1rem 0.3rem;
+    border-radius: 6px;
+    border: 1px solid var(--tm-border);
+}
+
 .tm-admin-row {
     display: flex;
     justify-content: space-between;

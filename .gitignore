@@ -361,3 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/Src/ToMind/App_Data/ToMind.db-shm
+/Src/ToMind/App_Data/ToMind.db-wal
